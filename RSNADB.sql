@@ -332,7 +332,6 @@ SELECT pg_catalog.setval('report_authors_report_author_id_seq', 1, false);
 
 CREATE TABLE reports (
     report_id integer NOT NULL,
-    patient_id integer NOT NULL,
     exam_id integer NOT NULL,
     proc_code character varying,
     report_status character varying NOT NULL,
@@ -659,7 +658,7 @@ COPY report_authors (report_author_id, report_id, signer_name, dictator_name, tr
 -- Data for Name: reports; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY reports (report_id, patient_id, exam_id, proc_code, report_status, report_status_timestamp, report_text, modified_date) FROM stdin;
+COPY reports (report_id, exam_id, proc_code, report_status, report_status_timestamp, report_text, modified_date) FROM stdin;
 \.
 
 
