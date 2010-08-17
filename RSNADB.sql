@@ -28,6 +28,13 @@ SET client_min_messages = warning;
 SET escape_string_warning = off;
 
 --
+-- Name: rsnadb; Type: COMMENT; Schema: -; Owner: postgres
+--
+
+COMMENT ON DATABASE rsnadb IS 'RSNA NIBIB Edge Device Database';
+
+
+--
 -- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
 --
 
@@ -283,50 +290,6 @@ SELECT pg_catalog.setval('patients_patient_id_seq', 1, false);
 
 
 --
--- Name: report_authors; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
---
-
-CREATE TABLE report_authors (
-    report_author_id integer NOT NULL,
-    report_id integer NOT NULL,
-    signer_name character varying,
-    dictator_name character varying,
-    transcriber_name character varying,
-    modified_date timestamp with time zone
-);
-
-
-ALTER TABLE public.report_authors OWNER TO postgres;
-
---
--- Name: report_authors_report_author_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE report_authors_report_author_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MAXVALUE
-    NO MINVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.report_authors_report_author_id_seq OWNER TO postgres;
-
---
--- Name: report_authors_report_author_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE report_authors_report_author_id_seq OWNED BY report_authors.report_author_id;
-
-
---
--- Name: report_authors_report_author_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('report_authors_report_author_id_seq', 1, false);
-
-
---
 -- Name: reports; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -334,9 +297,12 @@ CREATE TABLE reports (
     report_id integer NOT NULL,
     exam_id integer NOT NULL,
     proc_code character varying,
-    report_status character varying NOT NULL,
-    report_status_timestamp timestamp with time zone NOT NULL,
+    status character varying NOT NULL,
+    status_timestamp timestamp with time zone NOT NULL,
     report_text text,
+    signer_name character varying,
+    dictator_name character varying,
+    transcriber_name character varying,
     modified_date timestamp with time zone
 );
 
@@ -444,7 +410,6 @@ CREATE TABLE transactions (
     job_id integer NOT NULL,
     status integer NOT NULL,
     status_message character varying,
-    modified_user character varying,
     modified_date timestamp with time zone
 );
 
@@ -564,13 +529,6 @@ ALTER TABLE patients ALTER COLUMN patient_id SET DEFAULT nextval('patients_patie
 
 
 --
--- Name: report_author_id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE report_authors ALTER COLUMN report_author_id SET DEFAULT nextval('report_authors_report_author_id_seq'::regclass);
-
-
---
 -- Name: report_id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -647,18 +605,10 @@ COPY patients (patient_id, mrn, rsna_id, patient_name, dob, sex, street, city, s
 
 
 --
--- Data for Name: report_authors; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY report_authors (report_author_id, report_id, signer_name, dictator_name, transcriber_name, modified_date) FROM stdin;
-\.
-
-
---
 -- Data for Name: reports; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY reports (report_id, exam_id, proc_code, report_status, report_status_timestamp, report_text, modified_date) FROM stdin;
+COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_text, signer_name, dictator_name, transcriber_name, modified_date) FROM stdin;
 \.
 
 
@@ -682,7 +632,7 @@ COPY studies (study_id, study_uid, exam_id, study_description, study_date, modif
 -- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY transactions (transaction_id, job_id, status, status_message, modified_user, modified_date) FROM stdin;
+COPY transactions (transaction_id, job_id, status, status_message, modified_date) FROM stdin;
 \.
 
 
@@ -743,14 +693,6 @@ ALTER TABLE ONLY patients
 
 
 --
--- Name: pk_report_author_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
---
-
-ALTER TABLE ONLY report_authors
-    ADD CONSTRAINT pk_report_author_id PRIMARY KEY (report_author_id);
-
-
---
 -- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
@@ -804,6 +746,78 @@ ALTER TABLE ONLY exams
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT uq_login UNIQUE (user_login);
+
+
+--
+-- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY jobs
+    ADD CONSTRAINT fk_exam_id FOREIGN KEY (exam_id) REFERENCES exams(exam_id);
+
+
+--
+-- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY studies
+    ADD CONSTRAINT fk_exam_id FOREIGN KEY (exam_id) REFERENCES exams(exam_id);
+
+
+--
+-- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY reports
+    ADD CONSTRAINT fk_exam_id FOREIGN KEY (exam_id) REFERENCES exams(exam_id);
+
+
+--
+-- Name: fk_job_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY transactions
+    ADD CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id);
+
+
+--
+-- Name: fk_job_set_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY jobs
+    ADD CONSTRAINT fk_job_set_id FOREIGN KEY (job_set_id) REFERENCES job_sets(job_set_id);
+
+
+--
+-- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY job_sets
+    ADD CONSTRAINT fk_patient_id FOREIGN KEY (patient_id) REFERENCES patients(patient_id);
+
+
+--
+-- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY exams
+    ADD CONSTRAINT fk_patient_id FOREIGN KEY (patient_id) REFERENCES patients(patient_id);
+
+
+--
+-- Name: fk_report_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY jobs
+    ADD CONSTRAINT fk_report_id FOREIGN KEY (report_id) REFERENCES reports(report_id);
+
+
+--
+-- Name: fk_user_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY job_sets
+    ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(user_id);
 
 
 --
