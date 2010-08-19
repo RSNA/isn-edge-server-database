@@ -10,13 +10,13 @@ SET client_min_messages = warning;
 SET escape_string_warning = off;
 
 --
--- Name: rsnadb; Type: DATABASE; Schema: -; Owner: postgres
+-- Name: rsnadb; Type: DATABASE; Schema: -; Owner: edge
 --
 
 CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
 
 
-ALTER DATABASE rsnadb OWNER TO postgres;
+ALTER DATABASE rsnadb OWNER TO edge;
 
 \connect rsnadb
 
@@ -28,7 +28,7 @@ SET client_min_messages = warning;
 SET escape_string_warning = off;
 
 --
--- Name: rsnadb; Type: COMMENT; Schema: -; Owner: postgres
+-- Name: rsnadb; Type: COMMENT; Schema: -; Owner: edge
 --
 
 COMMENT ON DATABASE rsnadb IS 'RSNA NIBIB Edge Device Database';
@@ -50,7 +50,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: configurations; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE configurations (
@@ -60,10 +60,10 @@ CREATE TABLE configurations (
 );
 
 
-ALTER TABLE public.configurations OWNER TO postgres;
+ALTER TABLE public.configurations OWNER TO edge;
 
 --
--- Name: devices; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: devices; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE devices (
@@ -76,10 +76,10 @@ CREATE TABLE devices (
 );
 
 
-ALTER TABLE public.devices OWNER TO postgres;
+ALTER TABLE public.devices OWNER TO edge;
 
 --
--- Name: devices_device_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: devices_device_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE devices_device_id_seq
@@ -90,24 +90,24 @@ CREATE SEQUENCE devices_device_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.devices_device_id_seq OWNER TO postgres;
+ALTER TABLE public.devices_device_id_seq OWNER TO edge;
 
 --
--- Name: devices_device_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: devices_device_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE devices_device_id_seq OWNED BY devices.device_id;
 
 
 --
--- Name: devices_device_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: devices_device_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('devices_device_id_seq', 1, false);
 
 
 --
--- Name: exams; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: exams; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE exams (
@@ -119,10 +119,10 @@ CREATE TABLE exams (
 );
 
 
-ALTER TABLE public.exams OWNER TO postgres;
+ALTER TABLE public.exams OWNER TO edge;
 
 --
--- Name: exams_exam_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: exams_exam_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE exams_exam_id_seq
@@ -133,41 +133,40 @@ CREATE SEQUENCE exams_exam_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.exams_exam_id_seq OWNER TO postgres;
+ALTER TABLE public.exams_exam_id_seq OWNER TO edge;
 
 --
--- Name: exams_exam_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: exams_exam_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE exams_exam_id_seq OWNED BY exams.exam_id;
 
 
 --
--- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('exams_exam_id_seq', 1, false);
 
 
 --
--- Name: job_sets; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: job_sets; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE job_sets (
     job_set_id integer NOT NULL,
     patient_id integer NOT NULL,
     user_id integer NOT NULL,
-    security_question character varying,
-    security_answer integer,
+    security_pin character varying(10),
     email_address character varying,
     modified_date timestamp with time zone
 );
 
 
-ALTER TABLE public.job_sets OWNER TO postgres;
+ALTER TABLE public.job_sets OWNER TO edge;
 
 --
--- Name: job_sets_job_set_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: job_sets_job_set_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE job_sets_job_set_id_seq
@@ -178,24 +177,24 @@ CREATE SEQUENCE job_sets_job_set_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.job_sets_job_set_id_seq OWNER TO postgres;
+ALTER TABLE public.job_sets_job_set_id_seq OWNER TO edge;
 
 --
--- Name: job_sets_job_set_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: job_sets_job_set_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE job_sets_job_set_id_seq OWNED BY job_sets.job_set_id;
 
 
 --
--- Name: job_sets_job_set_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: job_sets_job_set_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('job_sets_job_set_id_seq', 1, false);
 
 
 --
--- Name: jobs; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE jobs (
@@ -210,10 +209,10 @@ CREATE TABLE jobs (
 );
 
 
-ALTER TABLE public.jobs OWNER TO postgres;
+ALTER TABLE public.jobs OWNER TO edge;
 
 --
--- Name: jobs_job_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: jobs_job_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE jobs_job_id_seq
@@ -224,30 +223,74 @@ CREATE SEQUENCE jobs_job_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.jobs_job_id_seq OWNER TO postgres;
+ALTER TABLE public.jobs_job_id_seq OWNER TO edge;
 
 --
--- Name: jobs_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: jobs_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE jobs_job_id_seq OWNED BY jobs.job_id;
 
 
 --
--- Name: jobs_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: jobs_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('jobs_job_id_seq', 1, false);
 
 
 --
--- Name: patients; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE patient_merge_events (
+    event_id integer NOT NULL,
+    old_mrn character varying(50) NOT NULL,
+    new_mrn character varying(50) NOT NULL,
+    old_patient_id integer NOT NULL,
+    new_patient_id integer NOT NULL,
+    status integer DEFAULT 0 NOT NULL,
+    modified_date timestamp with time zone
+);
+
+
+ALTER TABLE public.patient_merge_events OWNER TO edge;
+
+--
+-- Name: patient_merge_events_event_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE patient_merge_events_event_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.patient_merge_events_event_id_seq OWNER TO edge;
+
+--
+-- Name: patient_merge_events_event_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE patient_merge_events_event_id_seq OWNED BY patient_merge_events.event_id;
+
+
+--
+-- Name: patient_merge_events_event_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
+
+
+--
+-- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE patients (
     patient_id integer NOT NULL,
     mrn character varying(50) NOT NULL,
-    rsna_id character varying(15),
     patient_name character varying,
     dob date,
     sex character(1),
@@ -259,10 +302,10 @@ CREATE TABLE patients (
 );
 
 
-ALTER TABLE public.patients OWNER TO postgres;
+ALTER TABLE public.patients OWNER TO edge;
 
 --
--- Name: patients_patient_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: patients_patient_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE patients_patient_id_seq
@@ -273,24 +316,66 @@ CREATE SEQUENCE patients_patient_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.patients_patient_id_seq OWNER TO postgres;
+ALTER TABLE public.patients_patient_id_seq OWNER TO edge;
 
 --
--- Name: patients_patient_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: patients_patient_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE patients_patient_id_seq OWNED BY patients.patient_id;
 
 
 --
--- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('patients_patient_id_seq', 1, false);
 
 
 --
--- Name: reports; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: patients_rsna_ids; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE patients_rsna_ids (
+    map_id integer NOT NULL,
+    rsna_id character varying(15) NOT NULL,
+    patient_id integer NOT NULL,
+    modified_date timestamp with time zone
+);
+
+
+ALTER TABLE public.patients_rsna_ids OWNER TO edge;
+
+--
+-- Name: patients_rsna_ids_map_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE patients_rsna_ids_map_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.patients_rsna_ids_map_id_seq OWNER TO edge;
+
+--
+-- Name: patients_rsna_ids_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE patients_rsna_ids_map_id_seq OWNED BY patients_rsna_ids.map_id;
+
+
+--
+-- Name: patients_rsna_ids_map_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('patients_rsna_ids_map_id_seq', 1, false);
+
+
+--
+-- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE reports (
@@ -307,17 +392,17 @@ CREATE TABLE reports (
 );
 
 
-ALTER TABLE public.reports OWNER TO postgres;
+ALTER TABLE public.reports OWNER TO edge;
 
 --
--- Name: TABLE reports; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE reports; Type: COMMENT; Schema: public; Owner: edge
 --
 
 COMMENT ON TABLE reports IS 'This table contains exam report and exam status.';
 
 
 --
--- Name: reports_report_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: reports_report_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE reports_report_id_seq
@@ -328,24 +413,24 @@ CREATE SEQUENCE reports_report_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.reports_report_id_seq OWNER TO postgres;
+ALTER TABLE public.reports_report_id_seq OWNER TO edge;
 
 --
--- Name: reports_report_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: reports_report_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE reports_report_id_seq OWNED BY reports.report_id;
 
 
 --
--- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('reports_report_id_seq', 1, false);
 
 
 --
--- Name: roles; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: roles; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE roles (
@@ -355,10 +440,10 @@ CREATE TABLE roles (
 );
 
 
-ALTER TABLE public.roles OWNER TO postgres;
+ALTER TABLE public.roles OWNER TO edge;
 
 --
--- Name: studies; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: studies; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE studies (
@@ -371,10 +456,10 @@ CREATE TABLE studies (
 );
 
 
-ALTER TABLE public.studies OWNER TO postgres;
+ALTER TABLE public.studies OWNER TO edge;
 
 --
--- Name: studies_study_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: studies_study_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE studies_study_id_seq
@@ -385,24 +470,24 @@ CREATE SEQUENCE studies_study_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.studies_study_id_seq OWNER TO postgres;
+ALTER TABLE public.studies_study_id_seq OWNER TO edge;
 
 --
--- Name: studies_study_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: studies_study_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE studies_study_id_seq OWNED BY studies.study_id;
 
 
 --
--- Name: studies_study_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: studies_study_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('studies_study_id_seq', 1, false);
 
 
 --
--- Name: transactions; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: transactions; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE transactions (
@@ -414,10 +499,10 @@ CREATE TABLE transactions (
 );
 
 
-ALTER TABLE public.transactions OWNER TO postgres;
+ALTER TABLE public.transactions OWNER TO edge;
 
 --
--- Name: transactions_transaction_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: transactions_transaction_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE transactions_transaction_id_seq
@@ -428,24 +513,24 @@ CREATE SEQUENCE transactions_transaction_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.transactions_transaction_id_seq OWNER TO postgres;
+ALTER TABLE public.transactions_transaction_id_seq OWNER TO edge;
 
 --
--- Name: transactions_transaction_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: transactions_transaction_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE transactions_transaction_id_seq OWNED BY transactions.transaction_id;
 
 
 --
--- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('transactions_transaction_id_seq', 1, false);
 
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+-- Name: users; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE users (
@@ -463,10 +548,10 @@ CREATE TABLE users (
 );
 
 
-ALTER TABLE public.users OWNER TO postgres;
+ALTER TABLE public.users OWNER TO edge;
 
 --
--- Name: users_user_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: users_user_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
 CREATE SEQUENCE users_user_id_seq
@@ -477,87 +562,101 @@ CREATE SEQUENCE users_user_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.users_user_id_seq OWNER TO postgres;
+ALTER TABLE public.users_user_id_seq OWNER TO edge;
 
 --
--- Name: users_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+-- Name: users_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
 --
 
 ALTER SEQUENCE users_user_id_seq OWNED BY users.user_id;
 
 
 --
--- Name: users_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: users_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
 SELECT pg_catalog.setval('users_user_id_seq', 1, false);
 
 
 --
--- Name: device_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: device_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE devices ALTER COLUMN device_id SET DEFAULT nextval('devices_device_id_seq'::regclass);
 
 
 --
--- Name: exam_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: exam_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE exams ALTER COLUMN exam_id SET DEFAULT nextval('exams_exam_id_seq'::regclass);
 
 
 --
--- Name: job_set_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: job_set_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE job_sets ALTER COLUMN job_set_id SET DEFAULT nextval('job_sets_job_set_id_seq'::regclass);
 
 
 --
--- Name: job_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: job_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE jobs ALTER COLUMN job_id SET DEFAULT nextval('jobs_job_id_seq'::regclass);
 
 
 --
--- Name: patient_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: event_id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE patient_merge_events ALTER COLUMN event_id SET DEFAULT nextval('patient_merge_events_event_id_seq'::regclass);
+
+
+--
+-- Name: patient_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE patients ALTER COLUMN patient_id SET DEFAULT nextval('patients_patient_id_seq'::regclass);
 
 
 --
--- Name: report_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: map_id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE patients_rsna_ids ALTER COLUMN map_id SET DEFAULT nextval('patients_rsna_ids_map_id_seq'::regclass);
+
+
+--
+-- Name: report_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE reports ALTER COLUMN report_id SET DEFAULT nextval('reports_report_id_seq'::regclass);
 
 
 --
--- Name: study_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: study_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE studies ALTER COLUMN study_id SET DEFAULT nextval('studies_study_id_seq'::regclass);
 
 
 --
--- Name: transaction_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: transaction_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE transactions ALTER COLUMN transaction_id SET DEFAULT nextval('transactions_transaction_id_seq'::regclass);
 
 
 --
--- Name: user_id; Type: DEFAULT; Schema: public; Owner: postgres
+-- Name: user_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::regclass);
 
 
 --
--- Data for Name: configurations; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: configurations; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY configurations (key, value, modified_date) FROM stdin;
@@ -565,7 +664,7 @@ COPY configurations (key, value, modified_date) FROM stdin;
 
 
 --
--- Data for Name: devices; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: devices; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY devices (device_id, ae_title, ip_address, port_number, dns_name, modified_date) FROM stdin;
@@ -573,7 +672,7 @@ COPY devices (device_id, ae_title, ip_address, port_number, dns_name, modified_d
 
 
 --
--- Data for Name: exams; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: exams; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY exams (exam_id, accession_number, patient_id, exam_description, modified_date) FROM stdin;
@@ -581,15 +680,15 @@ COPY exams (exam_id, accession_number, patient_id, exam_description, modified_da
 
 
 --
--- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, security_question, security_answer, email_address, modified_date) FROM stdin;
+COPY job_sets (job_set_id, patient_id, user_id, security_pin, email_address, modified_date) FROM stdin;
 \.
 
 
 --
--- Data for Name: jobs; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: jobs; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY jobs (job_id, job_set_id, exam_id, report_id, status, status_message, documentset_id, modified_date) FROM stdin;
@@ -597,15 +696,31 @@ COPY jobs (job_id, job_set_id, exam_id, report_id, status, status_message, docum
 
 
 --
--- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: patient_merge_events; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patients (patient_id, mrn, rsna_id, patient_name, dob, sex, street, city, state, zip_code, modified_date) FROM stdin;
+COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patient_id, status, modified_date) FROM stdin;
 \.
 
 
 --
--- Data for Name: reports; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date) FROM stdin;
+\.
+
+
+--
+-- Data for Name: patients_rsna_ids; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY patients_rsna_ids (map_id, rsna_id, patient_id, modified_date) FROM stdin;
+\.
+
+
+--
+-- Data for Name: reports; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_text, signer_name, dictator_name, transcriber_name, modified_date) FROM stdin;
@@ -613,7 +728,7 @@ COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_te
 
 
 --
--- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY roles (role_id, role_description, modified_date) FROM stdin;
@@ -621,7 +736,7 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 
 
 --
--- Data for Name: studies; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: studies; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY studies (study_id, study_uid, exam_id, study_description, study_date, modified_date) FROM stdin;
@@ -629,7 +744,7 @@ COPY studies (study_id, study_uid, exam_id, study_description, study_date, modif
 
 
 --
--- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY transactions (transaction_id, job_id, status, status_message, modified_date) FROM stdin;
@@ -637,7 +752,7 @@ COPY transactions (transaction_id, job_id, status, status_message, modified_date
 
 
 --
--- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id) FROM stdin;
@@ -645,7 +760,7 @@ COPY users (user_id, user_login, user_name, email, crypted_password, salt, creat
 
 
 --
--- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY devices
@@ -653,7 +768,15 @@ ALTER TABLE ONLY devices
 
 
 --
--- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY patient_merge_events
+    ADD CONSTRAINT pk_event_id PRIMARY KEY (event_id);
+
+
+--
+-- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY exams
@@ -661,7 +784,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY jobs
@@ -669,7 +792,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY job_sets
@@ -677,7 +800,7 @@ ALTER TABLE ONLY job_sets
 
 
 --
--- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY configurations
@@ -685,7 +808,15 @@ ALTER TABLE ONLY configurations
 
 
 --
--- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_map_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY patients_rsna_ids
+    ADD CONSTRAINT pk_map_id PRIMARY KEY (map_id);
+
+
+--
+-- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY patients
@@ -693,7 +824,7 @@ ALTER TABLE ONLY patients
 
 
 --
--- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY reports
@@ -701,7 +832,7 @@ ALTER TABLE ONLY reports
 
 
 --
--- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY roles
@@ -709,7 +840,7 @@ ALTER TABLE ONLY roles
 
 
 --
--- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY studies
@@ -717,7 +848,7 @@ ALTER TABLE ONLY studies
 
 
 --
--- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY transactions
@@ -725,7 +856,7 @@ ALTER TABLE ONLY transactions
 
 
 --
--- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY users
@@ -733,7 +864,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY exams
@@ -741,7 +872,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+-- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY users
@@ -749,7 +880,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY jobs
@@ -757,7 +888,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY studies
@@ -765,7 +896,7 @@ ALTER TABLE ONLY studies
 
 
 --
--- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY reports
@@ -773,7 +904,7 @@ ALTER TABLE ONLY reports
 
 
 --
--- Name: fk_job_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_job_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY transactions
@@ -781,7 +912,7 @@ ALTER TABLE ONLY transactions
 
 
 --
--- Name: fk_job_set_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_job_set_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY jobs
@@ -789,7 +920,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY job_sets
@@ -797,7 +928,7 @@ ALTER TABLE ONLY job_sets
 
 
 --
--- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY exams
@@ -805,7 +936,15 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: fk_report_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
+--
+
+ALTER TABLE ONLY patients_rsna_ids
+    ADD CONSTRAINT fk_patient_id FOREIGN KEY (patient_id) REFERENCES patients(patient_id);
+
+
+--
+-- Name: fk_report_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY jobs
@@ -813,7 +952,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: fk_user_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: fk_user_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY job_sets
