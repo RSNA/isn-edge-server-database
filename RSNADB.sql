@@ -45,6 +45,23 @@ ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
 
 SET search_path = public, pg_catalog;
 
+--
+-- Name: usp_update_modified_date(); Type: FUNCTION; Schema: public; Owner: edge
+--
+
+CREATE FUNCTION usp_update_modified_date() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$BEGIN
+
+new. modified_date=CURRENT_TIMESTAMP;
+
+RETURN new;
+
+END;$$;
+
+
+ALTER FUNCTION public.usp_update_modified_date() OWNER TO edge;
+
 SET default_tablespace = '';
 
 SET default_with_oids = false;
@@ -56,7 +73,7 @@ SET default_with_oids = false;
 CREATE TABLE configurations (
     key character varying NOT NULL,
     value character varying NOT NULL,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -68,11 +85,10 @@ ALTER TABLE public.configurations OWNER TO edge;
 
 CREATE TABLE devices (
     device_id integer NOT NULL,
-    ae_title character varying(50) NOT NULL,
-    ip_address character varying(50) NOT NULL,
+    ae_title character varying(256) NOT NULL,
+    host character varying(256) NOT NULL,
     port_number character varying(10) NOT NULL,
-    dns_name character varying(50),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -115,7 +131,7 @@ CREATE TABLE exams (
     accession_number character varying(50) NOT NULL,
     patient_id integer NOT NULL,
     exam_description character varying(256),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -159,7 +175,7 @@ CREATE TABLE job_sets (
     user_id integer NOT NULL,
     security_pin character varying(10),
     email_address character varying,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -202,10 +218,9 @@ CREATE TABLE jobs (
     job_set_id integer NOT NULL,
     exam_id integer NOT NULL,
     report_id integer,
-    status integer NOT NULL,
-    status_message character varying,
-    documentset_id character varying(50),
-    modified_date timestamp with time zone
+    delay_in_hrs integer DEFAULT 72,
+    document_id character varying(100),
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -250,7 +265,7 @@ CREATE TABLE patient_merge_events (
     old_patient_id integer NOT NULL,
     new_patient_id integer NOT NULL,
     status integer DEFAULT 0 NOT NULL,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -285,6 +300,48 @@ SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
 
 
 --
+-- Name: patient_rsna_ids; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE patient_rsna_ids (
+    map_id integer NOT NULL,
+    rsna_id character varying(15) NOT NULL,
+    patient_id integer NOT NULL,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.patient_rsna_ids OWNER TO edge;
+
+--
+-- Name: patient_rsna_ids_map_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE patient_rsna_ids_map_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.patient_rsna_ids_map_id_seq OWNER TO edge;
+
+--
+-- Name: patient_rsna_ids_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE patient_rsna_ids_map_id_seq OWNED BY patient_rsna_ids.map_id;
+
+
+--
+-- Name: patient_rsna_ids_map_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('patient_rsna_ids_map_id_seq', 1, false);
+
+
+--
 -- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -298,7 +355,7 @@ CREATE TABLE patients (
     city character varying(50),
     state character varying(30),
     zip_code character varying(30),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -333,48 +390,6 @@ SELECT pg_catalog.setval('patients_patient_id_seq', 1, false);
 
 
 --
--- Name: patients_rsna_ids; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE TABLE patients_rsna_ids (
-    map_id integer NOT NULL,
-    rsna_id character varying(15) NOT NULL,
-    patient_id integer NOT NULL,
-    modified_date timestamp with time zone
-);
-
-
-ALTER TABLE public.patients_rsna_ids OWNER TO edge;
-
---
--- Name: patients_rsna_ids_map_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
---
-
-CREATE SEQUENCE patients_rsna_ids_map_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MAXVALUE
-    NO MINVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.patients_rsna_ids_map_id_seq OWNER TO edge;
-
---
--- Name: patients_rsna_ids_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
---
-
-ALTER SEQUENCE patients_rsna_ids_map_id_seq OWNED BY patients_rsna_ids.map_id;
-
-
---
--- Name: patients_rsna_ids_map_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('patients_rsna_ids_map_id_seq', 1, false);
-
-
---
 -- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -385,10 +400,10 @@ CREATE TABLE reports (
     status character varying NOT NULL,
     status_timestamp timestamp with time zone NOT NULL,
     report_text text,
-    signer_name character varying,
-    dictator_name character varying,
-    transcriber_name character varying,
-    modified_date timestamp with time zone
+    signer character varying,
+    dictator character varying,
+    transcriber character varying,
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -436,7 +451,7 @@ SELECT pg_catalog.setval('reports_report_id_seq', 1, false);
 CREATE TABLE roles (
     role_id integer NOT NULL,
     role_description character varying(50) NOT NULL,
-    modified_date time with time zone
+    modified_date time with time zone DEFAULT now()
 );
 
 
@@ -452,7 +467,7 @@ CREATE TABLE studies (
     exam_id integer NOT NULL,
     study_description character varying(255),
     study_date timestamp without time zone,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -495,7 +510,7 @@ CREATE TABLE transactions (
     job_id integer NOT NULL,
     status integer NOT NULL,
     status_message character varying,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -544,7 +559,8 @@ CREATE TABLE users (
     updated_at timestamp with time zone,
     remember_token character varying(40) DEFAULT NULL::character varying,
     remember_token_expires_at timestamp with time zone,
-    role_id integer NOT NULL
+    role_id integer NOT NULL,
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -577,6 +593,26 @@ ALTER SEQUENCE users_user_id_seq OWNED BY users.user_id;
 
 SELECT pg_catalog.setval('users_user_id_seq', 1, false);
 
+
+--
+-- Name: v_exam_status; Type: VIEW; Schema: public; Owner: edge
+--
+
+CREATE VIEW v_exam_status AS
+    SELECT p.patient_id, p.mrn, p.patient_name, p.dob, p.sex, p.street, p.city, p.state, p.zip_code, e.exam_id, e.accession_number, e.exam_description, r.report_id, r.status, r.status_timestamp, r.report_text, r.dictator, r.transcriber, r.signer FROM ((patients p JOIN exams e ON ((p.patient_id = e.patient_id))) JOIN (SELECT r1.report_id, r1.exam_id, r1.proc_code, r1.status, r1.status_timestamp, r1.report_text, r1.signer, r1.dictator, r1.transcriber, r1.modified_date FROM reports r1 WHERE (r1.status_timestamp = (SELECT max(r2.status_timestamp) AS max FROM reports r2 WHERE (r2.exam_id = r1.exam_id)))) r ON ((e.exam_id = r.exam_id)));
+
+
+ALTER TABLE public.v_exam_status OWNER TO edge;
+
+--
+-- Name: v_job_status; Type: VIEW; Schema: public; Owner: edge
+--
+
+CREATE VIEW v_job_status AS
+    SELECT j.job_id, j.exam_id, j.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp FROM (jobs j JOIN (SELECT t1.job_id, t1.status, t1.status_message, t1.modified_date FROM transactions t1 WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+
+
+ALTER TABLE public.v_job_status OWNER TO edge;
 
 --
 -- Name: device_id; Type: DEFAULT; Schema: public; Owner: edge
@@ -614,17 +650,17 @@ ALTER TABLE patient_merge_events ALTER COLUMN event_id SET DEFAULT nextval('pati
 
 
 --
+-- Name: map_id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE patient_rsna_ids ALTER COLUMN map_id SET DEFAULT nextval('patient_rsna_ids_map_id_seq'::regclass);
+
+
+--
 -- Name: patient_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
 ALTER TABLE patients ALTER COLUMN patient_id SET DEFAULT nextval('patients_patient_id_seq'::regclass);
-
-
---
--- Name: map_id; Type: DEFAULT; Schema: public; Owner: edge
---
-
-ALTER TABLE patients_rsna_ids ALTER COLUMN map_id SET DEFAULT nextval('patients_rsna_ids_map_id_seq'::regclass);
 
 
 --
@@ -667,7 +703,7 @@ COPY configurations (key, value, modified_date) FROM stdin;
 -- Data for Name: devices; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY devices (device_id, ae_title, ip_address, port_number, dns_name, modified_date) FROM stdin;
+COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
 \.
 
 
@@ -691,7 +727,7 @@ COPY job_sets (job_set_id, patient_id, user_id, security_pin, email_address, mod
 -- Data for Name: jobs; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY jobs (job_id, job_set_id, exam_id, report_id, status, status_message, documentset_id, modified_date) FROM stdin;
+COPY jobs (job_id, job_set_id, exam_id, report_id, delay_in_hrs, document_id, modified_date) FROM stdin;
 \.
 
 
@@ -704,6 +740,14 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 
 
 --
+-- Data for Name: patient_rsna_ids; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY patient_rsna_ids (map_id, rsna_id, patient_id, modified_date) FROM stdin;
+\.
+
+
+--
 -- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
@@ -712,18 +756,10 @@ COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip
 
 
 --
--- Data for Name: patients_rsna_ids; Type: TABLE DATA; Schema: public; Owner: edge
---
-
-COPY patients_rsna_ids (map_id, rsna_id, patient_id, modified_date) FROM stdin;
-\.
-
-
---
 -- Data for Name: reports; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_text, signer_name, dictator_name, transcriber_name, modified_date) FROM stdin;
+COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_text, signer, dictator, transcriber, modified_date) FROM stdin;
 \.
 
 
@@ -755,7 +791,7 @@ COPY transactions (transaction_id, job_id, status, status_message, modified_date
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id) FROM stdin;
+COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date) FROM stdin;
 \.
 
 
@@ -811,7 +847,7 @@ ALTER TABLE ONLY configurations
 -- Name: pk_map_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
-ALTER TABLE ONLY patients_rsna_ids
+ALTER TABLE ONLY patient_rsna_ids
     ADD CONSTRAINT pk_map_id PRIMARY KEY (map_id);
 
 
@@ -880,6 +916,136 @@ ALTER TABLE ONLY users
 
 
 --
+-- Name: tr_configurations_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_configurations_modified_date
+    BEFORE UPDATE ON configurations
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_devices_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_devices_modified_date
+    BEFORE UPDATE ON devices
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_exams_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_exams_modified_date
+    BEFORE UPDATE ON exams
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_job_sets_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_job_sets_modified_date
+    BEFORE UPDATE ON job_sets
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_jobs_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_jobs_modified_date
+    BEFORE UPDATE ON jobs
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_patient_merge_events_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_patient_merge_events_modified_date
+    BEFORE UPDATE ON patient_merge_events
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_patient_rsna_ids_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_patient_rsna_ids_modified_date
+    BEFORE UPDATE ON patient_rsna_ids
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_patients_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_patients_modified_date
+    BEFORE UPDATE ON patients
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_reports_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_reports_modified_date
+    BEFORE UPDATE ON reports
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_roles_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_roles_modified_date
+    BEFORE UPDATE ON roles
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_studies_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_studies_modified_date
+    BEFORE UPDATE ON studies
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_transactions_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_transactions_modified_date
+    BEFORE UPDATE ON transactions
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
+-- Name: tr_users_modified_date; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER tr_users_modified_date
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE PROCEDURE usp_update_modified_date();
+
+
+--
 -- Name: fk_exam_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
@@ -939,7 +1105,7 @@ ALTER TABLE ONLY exams
 -- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
-ALTER TABLE ONLY patients_rsna_ids
+ALTER TABLE ONLY patient_rsna_ids
     ADD CONSTRAINT fk_patient_id FOREIGN KEY (patient_id) REFERENCES patients(patient_id);
 
 
