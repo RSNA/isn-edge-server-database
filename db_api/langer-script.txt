@@ -1,0 +1,33 @@
+From: Langer, Steve G., Ph.D. [mailto:Langer.Steve@mayo.edu] 
+Sent: Friday, August 13, 2010 3:26 PM
+To: Tellis, Wyatt
+Cc: Zhu, Wendy
+Subject: RE: Database Changes
+
+ 
+
+OK;
+
+ I think there could be several things wrong; e.g. there is no "Create
+
+Dbase" command in the RSNA script. I have found the safest thing to do
+
+is export the dbase with the command line tool pg_dump like so
+
+ 
+
+      1> pg_dump -U dbase_owner -C -f filename.sql dbase_name
+
+ 
+
+Restore it with
+
+ 
+
+      2> psql -U dbase_owner -f filename.sql dbase_name
+
+ 
+
+The -C (Create) option in line 1 will create (or replace) the dbase if
+
+it does not (or does) exist when we do line 2
