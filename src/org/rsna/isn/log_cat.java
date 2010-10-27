@@ -7,16 +7,14 @@ package org.rsna.isn ;
 import java.io.* ;
 import java.util.* ;
 
-
-
 /**
  * @author sglanger
  * @version 1.0
  * @param
  * @return
  * Purpose: Examine the /rsna/logs direc and filter all of them 
- * 	into seprate debug, warn and info files
- * External Dependencies:
+ * 	into separate debug, warn and info files
+ * External Dependencies: /rsna/logs/*.log
  *
  * Copyright (c) <2010>, <Radiological Society of North America>
  * All rights reserved.
@@ -57,10 +55,13 @@ public class log_cat {
         String debug = "/rsna/logs/debug";
         String[] files = {info, warn, debug};
         del_files (files);
+
+        // testing list_cat
+        //String[] result = list_cat (files, "booger");
+        //System.out.println ("result=" + result[3]);
         
         File dir = new File("/rsna/logs");
-        String[] logs = dir.list();
-        
+        String[] logs = dir.list();       
         for (String i : logs) {
             if (i.contains(".log") & !i.contains(".log.")) {
                 i = new String ("/rsna/logs/" + i);
@@ -89,7 +90,6 @@ public class log_cat {
                             //System.out.println("line=" + line);
                             warn_w.write(line);
                             warn_w.newLine();   // Write system dependent end of line.
-
                         }
                     }
                     reader.close();
@@ -109,21 +109,22 @@ public class log_cat {
 
     /**
      * 
-     * @param a
-     * @param B
-     * @return
+     * @param a is a String array
+     * @param B a string to concat to it
+     * @return the concatted string array
+     *
+     * Purpose: oddly, concatting string arrays is very hard
      */
     public static String[] list_cat (String[] a, String B) {
 
         //java.util.List mylist = new java.util.List();
-        ArrayList mylist = new ArrayList();
+        ArrayList<String> mylist = new ArrayList<String>();
         mylist.addAll(Arrays.asList(a));
         mylist.add(B);
-        System.out.println("list=" + mylist);
+        //System.out.println("list=" + mylist);
 
-        //String[] c =  (String[]) mylist.toArray();
-        String[] c= {"W", "y"};
-        return c;
+        // from Tyler Holm
+        return mylist.toArray(new String[mylist.size()]);
     }
 
     
@@ -131,7 +132,7 @@ public class log_cat {
      *
      * @param 
      * @return
-     * Purpose: delete the warn, info and debug files so they 
+     * Purpose: delete the warn, info and debug files so they
      * 		can be rebuilt from scratch
      */
     public static String del_files (String[] str) {
