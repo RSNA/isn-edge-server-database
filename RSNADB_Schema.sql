@@ -542,7 +542,8 @@ CREATE TABLE patient_rsna_ids (
     patient_id integer NOT NULL,
     modified_date timestamp with time zone DEFAULT now(),
     patient_alias_lastname character varying(100),
-    patient_alias_firstname character varying(100)
+    patient_alias_firstname character varying(100),
+    registered boolean DEFAULT false NOT NULL
 );
 
 
