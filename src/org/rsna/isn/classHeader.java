@@ -30,7 +30,17 @@
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  */
+public class classHeader  {
+    
+    /**
+     * 
+     * @param a
+     * @param b
+     * @return
+     */
+    public String method1 (String a, int b) {
 
-public void classHeader () {
+            return (a);
+    }
 
 }
