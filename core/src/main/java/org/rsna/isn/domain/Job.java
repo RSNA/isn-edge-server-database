@@ -16,7 +16,17 @@ public class Job
 
 	public static final int PREPARE_CONTENT_FAILED = -2000;
 
-	public static final int WAITING_FOR_TRANSFER_CONTENT = 2;
+	public static final int WAITING_FOR_EXAM_FINALIZATION = 21;
+
+	public static final int WAITING_FOR_DELAY_EXPIRATION = 22;
+
+	public static final int STARTED_DICOM_C_MOVE = 23;
+
+	public static final int FAILED_TO_PREPARE_CONTENT = -21;
+
+	public static final int DICOM_C_MOVE_FAILED= -23;
+
+	public static final int WAITING_FOR_TRANSFER_CONTENT = 30;
 
 	public static final int STARTED_TRANSFER_CONTENT = 31;
 
