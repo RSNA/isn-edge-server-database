@@ -22,7 +22,7 @@ public class Job
 
 	public static final int UNABLE_TO_FIND_IMAGES = -21;
 
-	public static final int DICOM_C_MOVE_FAILED= -22;
+	public static final int DICOM_C_MOVE_FAILED= -23;
 
 	public static final int WAITING_FOR_TRANSFER_CONTENT = 30;
 
@@ -34,7 +34,7 @@ public class Job
 
 	public static final int STARTED_DOCUMENT_SUBMISSION = 34;
 
-	public static final int FAILED_TO_TRANSFER_TO_CLEARINGHOUSE = -31;
+	public static final int FAILED_TO_TRANSFER_TO_CLEARINGHOUSE = -30;
 
 	public static final int FAILED_TO_GENERATE_KOS = -32;
 
