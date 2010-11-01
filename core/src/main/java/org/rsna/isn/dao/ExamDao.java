@@ -18,7 +18,7 @@ import org.rsna.isn.domain.RsnaDemographics;
  */
 public class ExamDao extends Dao
 {
-	public Exam getExam(int examId) throws ClassNotFoundException, SQLException
+	public Exam getExam(int examId) throws SQLException
 	{
 		Connection con = getConnection();
 		try

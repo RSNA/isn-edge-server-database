@@ -16,7 +16,7 @@ import java.sql.SQLException;
  */
 public class ConfigurationDao extends Dao
 {
-	public String getConfiguration(String key) throws ClassNotFoundException, SQLException
+	public String getConfiguration(String key) throws SQLException
 	{
 		Connection con = getConnection();
 

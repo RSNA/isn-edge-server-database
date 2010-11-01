@@ -19,7 +19,7 @@ import org.rsna.isn.domain.Device;
 public class DeviceDao extends Dao
 {
 
-	public Set<Device> getDevices() throws ClassNotFoundException, SQLException
+	public Set<Device> getDevices() throws SQLException
 	{
 		Set<Device> devices = new LinkedHashSet<Device>();
 

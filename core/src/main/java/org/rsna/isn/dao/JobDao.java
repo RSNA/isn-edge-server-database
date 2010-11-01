@@ -20,107 +20,104 @@ import org.rsna.isn.domain.Job;
  */
 public class JobDao extends Dao
 {
-    public Set<Job> getJobsByStatus(int status) throws ClassNotFoundException, SQLException
-    {
-	Connection con = getConnection();
-	try
+	public Set<Job> getJobsByStatus(int status) throws SQLException
 	{
-	    Set<Job> jobs = new LinkedHashSet<Job>();
+		Connection con = getConnection();
+		try
+		{
+			Set<Job> jobs = new LinkedHashSet<Job>();
 
-	    String select = "SELECT * FROM v_job_status WHERE status =  " + status
-		    + " ORDER BY last_transaction_timestamp LIMIT 1";
+			String select = "SELECT * FROM v_job_status WHERE status =  " + status
+					+ " ORDER BY last_transaction_timestamp LIMIT 1";
 
-	    ResultSet rs = con.createStatement().executeQuery(select);
-	    while (rs.next())
-	    {
-		Job job = buildEntity(rs);
+			ResultSet rs = con.createStatement().executeQuery(select);
+			while (rs.next())
+			{
+				Job job = buildEntity(rs);
 
-		jobs.add(job);
-	    }
+				jobs.add(job);
+			}
 
-	    return jobs;
+			return jobs;
+		}
+		finally
+		{
+			con.close();
+		}
+
 	}
-	finally
+
+	public Job getJobById(int id) throws SQLException
 	{
-	    con.close();
+		Connection con = getConnection();
+		try
+		{
+			Job job = null;
+
+			String select = "SELECT * FROM v_job_status WHERE job_id =  " + id;
+
+			ResultSet rs = con.createStatement().executeQuery(select);
+			if (rs.next())
+				job = buildEntity(rs);
+			rs.close();
+
+			return job;
+		}
+		finally
+		{
+			con.close();
+		}
 	}
 
-    }
-
-    public Job getJobById(int id) throws ClassNotFoundException, SQLException
-    {
-	Connection con = getConnection();
-	try
+	public void updateStatus(Job job, int status, Throwable ex) throws SQLException
 	{
-	    Job job = null;
+		String msg = ExceptionUtils.getStackTrace(ex);
 
-	    String select = "SELECT * FROM v_job_status WHERE job_id =  " + id;
-
-	    ResultSet rs = con.createStatement().executeQuery(select);
-	    if (rs.next())
-		job = buildEntity(rs);
-	    rs.close();
-
-	    return job;
+		updateStatus(job, status, msg);
 	}
-	finally
+
+	public void updateStatus(Job job, int status) throws SQLException
 	{
-	    con.close();
+		updateStatus(job, status, "");
 	}
-    }
 
-    public void updateStatus(Job job, int status, Throwable ex)
-	    throws ClassNotFoundException, SQLException
-    {
-	String msg = ExceptionUtils.getStackTrace(ex);
-
-	updateStatus(job, status, msg);
-    }
-
-    public void updateStatus(Job job, int status)
-	    throws ClassNotFoundException, SQLException
-    {
-	updateStatus(job, status, "");
-    }
-
-    public void updateStatus(Job job, int status, String message)
-	    throws ClassNotFoundException, SQLException
-    {
-	Connection con = getConnection();
-
-	try
+	public void updateStatus(Job job, int status, String message) throws SQLException
 	{
-	    String insert = "INSERT INTO transactions"
-		    + "(job_id, status, status_message) VALUES (?, ?, ?)";
+		Connection con = getConnection();
 
-	    PreparedStatement stmt = con.prepareStatement(insert);
-	    stmt.setInt(1, job.getJobId());
-	    stmt.setInt(2, status);
-	    stmt.setString(3, message);
+		try
+		{
+			String insert = "INSERT INTO transactions"
+					+ "(job_id, status_code, comments) VALUES (?, ?, ?)";
 
-	    stmt.execute();
+			PreparedStatement stmt = con.prepareStatement(insert);
+			stmt.setInt(1, job.getJobId());
+			stmt.setInt(2, status);
+			stmt.setString(3, message);
+
+			stmt.execute();
+		}
+		finally
+		{
+			con.close();
+		}
 	}
-	finally
+
+	private Job buildEntity(ResultSet rs) throws SQLException
 	{
-	    con.close();
+		Job job = new Job();
+
+		job.setJobId(rs.getInt("job_id"));
+		job.setStatus(rs.getInt("status"));
+		job.setStatusMessage(rs.getString("status_message"));
+		job.setDelay(rs.getInt("delay_in_hrs"));
+
+		int examId = rs.getInt("exam_id");
+
+		Exam exam = new ExamDao().getExam(examId);
+		job.setExam(exam);
+
+		return job;
 	}
-    }
-
-    private Job buildEntity(ResultSet rs) throws SQLException, ClassNotFoundException
-    {
-	Job job = new Job();
-
-	job.setJobId(rs.getInt("job_id"));
-	job.setStatus(rs.getInt("status"));
-	job.setStatusMessage(rs.getString("status_message"));
-	job.setDelay(rs.getInt("delay_in_hrs"));
-
-	int examId = rs.getInt("exam_id");
-
-	Exam exam = new ExamDao().getExam(examId);
-	job.setExam(exam);
-
-	return job;
-    }
 
 }
