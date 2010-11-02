@@ -38,7 +38,7 @@ package org.rsna.isn ;
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  */
-public class get_path {
+public class Get_Path {
 
     public String path_root ;
     public String path_logs ;
@@ -51,7 +51,7 @@ public class get_path {
      * @return  Constructors are private and cannot have returns
      * Purpose: determine the OS, and then stuff paths for caller
      */
-    get_path () {
+    Get_Path () {
         String os = System.getProperty("os.name").toLowerCase() ;
         //System.out.println ("os =" + os);
         
