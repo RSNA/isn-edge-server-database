@@ -1,21 +1,4 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
-
-package org.rsna.isn ;
-
-/**
- * @author
- * @version
- * @param
- * @return
- * Package name: org.rsna.isn.xxx
- * Purpose: Provide an OS neutral way to inform the caller the paths to
- *          RSNA folders
- * External Dependencies:
- *
- * Copyright (c) <2010>, <Radiological Society of North America>
+/* Copyright (c) <2010>, <Radiological Society of North America>
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -38,6 +21,20 @@ package org.rsna.isn ;
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  */
+
+package org.rsna.isn ;
+import java.io.File ;
+
+/**
+ * @author
+ * @version
+ * @param
+ * @return
+ * Package name: org.rsna.isn.xxx
+ * Purpose: Provide an OS neutral way to inform the caller the paths to
+ *          RSNA folders
+ * External Dependencies:
+ */
 public class Get_Path {
 
     public String path_root ;
@@ -48,26 +45,83 @@ public class Get_Path {
     
     /**
      *
+     * @param mode can be "testlin" or "testwin" or ""
      * @return  Constructors are private and cannot have returns
-     * Purpose: determine the OS, and then stuff paths for caller
+     * Purpose: This constructor version looks for an environment
+     *      variable RSNA_ROOT and then computes other paths from that.
+     *      If it fails to find the env_var RSNA_ROOT it uses OS detection
+     *      to guess the default OS dependant path
+     *
+     * Example:
+     *  http://www.rgagnon.com/javadetails/java-0150.html
      */
-    Get_Path () {
+    Get_Path (String mode) {
+
+        if (mode.contains("testlin")) {
+            path_root = "/rsna/";
+        } else if (mode.contains("testwin")) {
+            path_root = "c:\rsna" + File.pathSeparator ;
+        } else {
+            //this is a live system
+            //attempting to find env_var
+            path_root = System.getProperty("RSNA_ROOT") ;
+        }
+        
+        if (path_root.isEmpty()) {
+            Default_Paths ();
+        }   else {
+            Compute_Paths () ;
+        }      
+    }
+
+
+
+    /**
+     * 
+     * Purpose: Based on path_root, build up the proper OS
+     *      paths for the RSNA folder
+     */
+    private void Compute_Paths () {
+
+        if (path_root.contains("/")) {
+            //this is a Linux box
+            //System.out.println ("here");
+            path_logs = path_root + "logs/";
+            path_properties = path_root + "properties/";
+            path_dcm_in = path_root + "dcm/";
+            path_dcm_out = path_root + "dcmout/";
+
+        } else {
+            //this is a Windows box
+            path_logs = path_root + "logs"  + File.pathSeparator ;
+            path_properties = path_root + "properties"  + File.pathSeparator ;
+            path_dcm_in = path_root + "dcm"  + File.pathSeparator ;
+            path_dcm_out = path_root + "dcmout"  + File.pathSeparator ;
+        }
+    }
+
+    /**
+     *
+     * Purpose: RSNA_ROOT was not found, use OS detection
+     *      and guess defaults
+     */
+    private void Default_Paths () {
         String os = System.getProperty("os.name").toLowerCase() ;
         //System.out.println ("os =" + os);
-        
+
         if (os.contains("wind")) {
-            path_root = "c:\rsna";
-            //path_logs = "c:\rsna\logs";
-            //path_properties = "c:\rsna\properties";
-            //path_dcm_in = "c:\rsna\dcm";
-            //path_dcm_out = "c:\rsna\dcmout";
+            path_root = "c:\rsna"  + File.pathSeparator;
+            path_logs = path_root  + "logs" + File.pathSeparator ;
+            path_properties = path_root  + "properties"  + File.pathSeparator;
+            path_dcm_in = path_root + "dcm"  + File.pathSeparator;
+            path_dcm_out = path_root + "dcmout"  + File.pathSeparator;
 
         } else if (os.contains("lin")) {
             path_root = "/rsna/";
-            path_logs = "/rsna/logs/";
-            path_properties = "/rsna/properties/";
-            path_dcm_in = "/rsna/dcm/";
-            path_dcm_out = "/rsna/dcmout/";
+            path_logs = path_root + "logs/";
+            path_properties = path_root + "properties/";
+            path_dcm_in = path_root + "dcm/";
+            path_dcm_out = path_root + "dcmout/";
         }
     }
 }

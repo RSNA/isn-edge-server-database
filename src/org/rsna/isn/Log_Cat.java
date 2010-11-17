@@ -1,23 +1,4 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
-
-package org.rsna.isn ;
-import org.rsna.isn.Get_Path ;
-import java.io.* ;
-import java.util.* ;
-
-/**
- * @author sglanger
- * @version 1.0
- * @param
- * @return
- * Purpose: Examine the /rsna/logs direc and filter all of them 
- * 	into separate debug, warn and info files
- * External Dependencies: /rsna/logs/*.log
- *
- * Copyright (c) <2010>, <Radiological Society of North America>
+ /* Copyright (c) <2010>, <Radiological Society of North America>
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -41,6 +22,21 @@ import java.util.* ;
  * OF SUCH DAMAGE.
  */
 
+package org.rsna.isn ;
+import org.rsna.isn.Get_Path ;
+import java.io.* ;
+import java.util.* ;
+
+/**
+ * @author sglanger
+ * @version 1.0
+ * @param
+ * @return
+ * Purpose: Examine the /rsna/logs direc and filter all of them 
+ * 	into separate debug, warn and info files
+ * External Dependencies: /rsna/logs/*.log
+ */
+
 public class Log_Cat {
 
     /**
@@ -51,7 +47,7 @@ public class Log_Cat {
      */
     public static void main(String[] args) {
 
-        Get_Path path = new Get_Path();
+        Get_Path path = new Get_Path("testlin");
         String info = path.path_logs + "info";
         String warn = path.path_logs + "warn";
         String debug = path.path_logs + "debug";
