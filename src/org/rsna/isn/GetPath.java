@@ -35,7 +35,8 @@ import java.io.File ;
  *          RSNA folders
  * External Dependencies: environment var RSNA_ROOT
  */
-public class GetPath {
+public class GetPath
+{
 
     public String path_root ;
     public String path_logs ;
@@ -55,21 +56,27 @@ public class GetPath {
      * Example:
      *  http://www.rgagnon.com/javadetails/java-0150.html
      */
-    GetPath (String mode) {
+    GetPath (String mode)
+    {
 
-        if (mode.contains("testlin")) {
+        if (mode.contains("testlin"))
+        {
             path_root = "/rsna/";
-        } else if (mode.contains("testwin")) {
+        } else if (mode.contains("testwin"))
+        {
             path_root = "c:\rsna" + File.pathSeparator ;
-        } else {
+        } else
+        {
             //this is a live system
             //attempting to find env_var
             path_root = System.getProperty("RSNA_ROOT") ;
         }
         
-        if (path_root.isEmpty()) {
+        if (path_root.isEmpty())
+        {
             defaultPaths ();
-        }   else {
+        }   else
+        {
             computePaths () ;
         }      
     }
@@ -81,9 +88,11 @@ public class GetPath {
      * Purpose: Based on path_root, build up the proper OS
      *      paths for the RSNA folder
      */
-    private void computePaths () {
+    private void computePaths ()
+    {
 
-        if (path_root.contains("/")) {
+        if (path_root.contains("/"))
+        {
             //this is a Linux box
             //System.out.println ("here");
             path_logs = path_root + "logs/";
@@ -91,7 +100,8 @@ public class GetPath {
             path_dcm_in = path_root + "dcm/";
             path_dcm_out = path_root + "dcmout/";
 
-        } else {
+        } else
+        {
             //this is a Windows box
             path_logs = path_root + "logs"  + File.pathSeparator ;
             path_properties = path_root + "properties"  + File.pathSeparator ;
@@ -105,18 +115,21 @@ public class GetPath {
      * Purpose: RSNA_ROOT was not found, use OS detection
      *      and guess defaults
      */
-    private void defaultPaths () {
+    private void defaultPaths ()
+    {
         String os = System.getProperty("os.name").toLowerCase() ;
         //System.out.println ("os =" + os);
 
-        if (os.contains("wind")) {
+        if (os.contains("wind"))
+        {
             path_root = "c:\rsna"  + File.pathSeparator;
             path_logs = path_root  + "logs" + File.pathSeparator ;
             path_properties = path_root  + "properties"  + File.pathSeparator;
             path_dcm_in = path_root + "dcm"  + File.pathSeparator;
             path_dcm_out = path_root + "dcmout"  + File.pathSeparator;
 
-        } else if (os.contains("lin")) {
+        } else if (os.contains("lin"))
+        {
             path_root = "/rsna/";
             path_logs = path_root + "logs/";
             path_properties = path_root + "properties/";

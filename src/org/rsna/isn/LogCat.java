@@ -45,7 +45,8 @@ public class LogCat {
      *      from each app log file to single large
      *      files for the Web Admin app log viewer
      */
-    public static void main(String[] args) {
+    public static void main(String[] args)
+    {
 
         GetPath path = new GetPath("testlin");
         String info = path.path_logs + "info";
@@ -60,31 +61,38 @@ public class LogCat {
         
         File dir = new File(path.path_logs);
         String[] logs = dir.list();       
-        for (String i : logs) {
-            if (i.contains(".log") & !i.contains(".log.")) {
+        for (String i : logs)
+        {
+            if (i.contains(".log") & !i.contains(".log."))
+            {
                 i = new String (path.path_logs + i);
                 System.out.println("string=" + i);
                 File f = new File(i);
-                try {
+                try
+                {
                     BufferedReader reader = new BufferedReader(new FileReader(f));
                     BufferedWriter info_w = new BufferedWriter(new FileWriter(info, true));
                     BufferedWriter warn_w = new BufferedWriter(new FileWriter(warn, true));
                     BufferedWriter debug_w = new BufferedWriter(new FileWriter(debug,true));
 
                     String line = null;
-                    while ((line=reader.readLine()) != null) {
+                    while ((line=reader.readLine()) != null)
+                    {
                         //System.out.println("line=" + line);
-                        if (line.contains("INFO")) {
+                        if (line.contains("INFO"))
+                        {
                             //System.out.println("line=" + line);
                             info_w.write(line);
                             info_w.newLine();   // Write system dependent end of line.
 
-                        } else if (line.contains("DEBU")) {
+                        } else if (line.contains("DEBU"))
+                        {
                             //System.out.println("line=" + line);
                             debug_w.write(line);
                             debug_w.newLine();   // Write system dependent end of line.
 
-                        } else if (line.contains("WARN")) {
+                        } else if (line.contains("WARN"))
+                        {
                             //System.out.println("line=" + line);
                             warn_w.write(line);
                             warn_w.newLine();   // Write system dependent end of line.
@@ -95,7 +103,8 @@ public class LogCat {
                     warn_w.close();
                     debug_w.close();
 
-                } catch (IOException e) {
+                } catch (IOException e)
+                {
                     System.err.println(e);
                     System.exit(1);
                 }
@@ -113,7 +122,8 @@ public class LogCat {
      *
      * Purpose: oddly, concatting string arrays is very hard
      */
-    public static String[] listCat (String[] a, String B) {
+    public static String[] listCat (String[] a, String B)
+    {
 
         //java.util.List mylist = new java.util.List();
         ArrayList<String> mylist = new ArrayList<String>();
@@ -133,31 +143,35 @@ public class LogCat {
      * Purpose: delete the warn, info and debug files so they
      * 		can be rebuilt from scratch
      */
-    public static String delFiles (String[] str) {
+    public static String delFiles (String[] str)
+    {
         //int err = 0;
         
-        for (String i : str) {
+        for (String i : str)
+        {
             // del each file i
             File f = new File(i);
            // Make sure the file or directory exists and isn't write protected
-            if (!f.exists()) {
+            if (!f.exists())
+            {
                 String err = new String("Delete: no such file or directory: " + f);
                 return (err);
             }
 
-            if (!f.canWrite()) {
+            if (!f.canWrite())
+            {
                 String err = new String("Delete: write protected: "+ f);
                 return (err);
             }
 
             // Attempt to delete it
             boolean success = f.delete();
-            if (!success) {
+            if (!success)
+            {
                 String err = new String("Delete: deletion failed");
                 return (err);
             }
         }
-
         return ("Success");
     }
  }
