@@ -39,6 +39,7 @@ ALTER TABLE ONLY public.exams DROP CONSTRAINT uq_exam;
 ALTER TABLE ONLY public.users DROP CONSTRAINT pk_user_id;
 ALTER TABLE ONLY public.transactions DROP CONSTRAINT pk_transaction_id;
 ALTER TABLE ONLY public.studies DROP CONSTRAINT pk_study_id;
+ALTER TABLE ONLY public.status_codes DROP CONSTRAINT pk_status_code;
 ALTER TABLE ONLY public.roles DROP CONSTRAINT pk_role_id;
 ALTER TABLE ONLY public.reports DROP CONSTRAINT pk_report_id;
 ALTER TABLE ONLY public.patients DROP CONSTRAINT pk_patient_id;
@@ -46,6 +47,9 @@ ALTER TABLE ONLY public.patient_rsna_ids DROP CONSTRAINT pk_map_id;
 ALTER TABLE ONLY public.configurations DROP CONSTRAINT pk_key;
 ALTER TABLE ONLY public.job_sets DROP CONSTRAINT pk_job_set_id;
 ALTER TABLE ONLY public.jobs DROP CONSTRAINT pk_job_id;
+ALTER TABLE ONLY public.hipaa_audit_views DROP CONSTRAINT pk_hipaa_audit_view_id;
+ALTER TABLE ONLY public.hipaa_audit_mrns DROP CONSTRAINT pk_hipaa_audit_mrn_id;
+ALTER TABLE ONLY public.hipaa_audit_accession_numbers DROP CONSTRAINT pk_hipaa_audit_accession_number_id;
 ALTER TABLE ONLY public.exams DROP CONSTRAINT pk_exam_id;
 ALTER TABLE ONLY public.patient_merge_events DROP CONSTRAINT pk_event_id;
 ALTER TABLE ONLY public.devices DROP CONSTRAINT pk_device_id;
@@ -71,6 +75,7 @@ DROP SEQUENCE public.transactions_transaction_id_seq;
 DROP TABLE public.transactions;
 DROP SEQUENCE public.studies_study_id_seq;
 DROP TABLE public.studies;
+DROP TABLE public.status_codes;
 DROP TABLE public.roles;
 DROP SEQUENCE public.reports_report_id_seq;
 DROP TABLE public.reports;
@@ -99,10 +104,34 @@ DROP FUNCTION public.usp_update_modified_date();
 DROP PROCEDURAL LANGUAGE plpgsql;
 DROP SCHEMA public;
 --
--- Name: rsnadb; Type: COMMENT; Schema: -; Owner: edge
+-- Name: rsnadb2; Type: COMMENT; Schema: -; Owner: edge
 --
 
-COMMENT ON DATABASE rsnadb IS 'RSNA NIBIB Edge Device Database';
+COMMENT ON DATABASE rsnadb2 IS 'RSNA2 Edge Device Database
+Authors: Wendy Zhu (Univ of Chicago) and Steve G Langer (Mayo Clinic)
+
+Copyright (c) <2010>, <Radiological Society of North America>
+  All rights reserved.
+  Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+  Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+  Neither the name of the <RSNA> nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+  THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+  USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+  USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+  OF SUCH DAMAGE.';
 
 
 --
@@ -170,11 +199,13 @@ ALTER TABLE public.configurations OWNER TO edge;
 -- Name: TABLE configurations; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE configurations IS 'This table is used to store applications specific config data;
+COMMENT ON TABLE configurations IS 'This table is used to store applications specific config data as key/value pairs and takes the place of java properties files (rather then having it all aly about in plain text files);
+
 a) paths to key things (ie dicom studies)
 b) site prefix for generating RSNA ID''s
 c) site delay for applying to report finalize before available to send to CH
-d) etc';
+d) Clearing House connection data
+e) etc';
 
 
 --
@@ -196,10 +227,11 @@ ALTER TABLE public.devices OWNER TO edge;
 -- Name: TABLE devices; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE devices IS 'Used to store
+COMMENT ON TABLE devices IS 'Used to store DICOM connection info for mage sources, and possibly others
+
 a) the DICOM triplet (for remote DICOM study sources)
-b) the HL7 feed infor (reports, orders)
-c) the connect info for the Clearing House
+b) ?
+
 ';
 
 
@@ -278,7 +310,7 @@ ALTER SEQUENCE exams_exam_id_seq OWNED BY exams.exam_id;
 -- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('exams_exam_id_seq', 82, true);
+SELECT pg_catalog.setval('exams_exam_id_seq', 83, true);
 
 
 --
@@ -289,7 +321,7 @@ CREATE TABLE hipaa_audit_accession_numbers (
     id integer NOT NULL,
     view_id integer,
     accession_number character varying(100),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -299,7 +331,7 @@ ALTER TABLE public.hipaa_audit_accession_numbers OWNER TO edge;
 -- Name: TABLE hipaa_audit_accession_numbers; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking for edge device auditing
+COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking for edge device auditing. This table and  "audit_mrns" report up to table HIPAA_views
 ';
 
 
@@ -339,7 +371,7 @@ CREATE TABLE hipaa_audit_mrns (
     id integer NOT NULL,
     view_id integer,
     mrn character varying(100),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -349,7 +381,8 @@ ALTER TABLE public.hipaa_audit_mrns OWNER TO edge;
 -- Name: TABLE hipaa_audit_mrns; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device auditing';
+COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device auditing. This table and  "audit_acessions" report up to table HIPAA_views
+';
 
 
 --
@@ -389,7 +422,7 @@ CREATE TABLE hipaa_audit_views (
     requesting_ip character varying(15),
     requesting_username character varying(100),
     requesting_uri text,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -399,7 +432,7 @@ ALTER TABLE public.hipaa_audit_views OWNER TO edge;
 -- Name: TABLE hipaa_audit_views; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge device auditing. This is the top level table that tracks who asked for what from where';
+COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge device auditing. This is the top level table that tracks who asked for what from where. The HIPAA tables "audfit_accession" and "audit_mrns" report up to this table';
 
 
 --
@@ -439,9 +472,10 @@ CREATE TABLE job_sets (
     patient_id integer NOT NULL,
     user_id integer NOT NULL,
     security_pin character varying(10),
-    email_address character varying,
+    email_address character varying(255),
     modified_date timestamp with time zone DEFAULT now(),
-    delay_in_hrs integer DEFAULT 72
+    delay_in_hrs integer DEFAULT 72,
+    single_use_patient_id character varying(64)
 );
 
 
@@ -453,6 +487,20 @@ ALTER TABLE public.job_sets OWNER TO edge;
 
 COMMENT ON TABLE job_sets IS 'This is one of a pair of tables that bind a patient to a edge device job, consisting of one or more exam accessions descrbing DICOM exams to send to the CH. The other table is JOBS
 ';
+
+
+--
+-- Name: COLUMN job_sets.security_pin; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN job_sets.security_pin IS 'the PIN the patient used for the submission of this job set';
+
+
+--
+-- Name: COLUMN job_sets.email_address; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN job_sets.email_address IS 'the email address the patient claimed at the time this job was submitted to the Clearing House';
 
 
 --
@@ -599,7 +647,9 @@ CREATE TABLE patient_rsna_ids (
     modified_date timestamp with time zone DEFAULT now(),
     patient_alias_lastname character varying(100),
     patient_alias_firstname character varying(100),
-    registered boolean DEFAULT false NOT NULL
+    registered boolean DEFAULT false NOT NULL,
+    email_address character varying(255),
+    security_pin character varying(10)
 );
 
 
@@ -611,6 +661,34 @@ ALTER TABLE public.patient_rsna_ids OWNER TO edge;
 
 COMMENT ON TABLE patient_rsna_ids IS 'Map a patients local medical center ID (ie MRN) to the MPI like RSNAID
 ';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.rsna_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.rsna_id IS 'the ID the patient shall be known by on the  Clearing House';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.patient_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.patient_id IS 'the patient ID used at the sending medical center';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.email_address; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.email_address IS 'the patient''s current email address. This is copied into the Job-set table, since there is no guarantee that the same email address will be used over all Job-sets';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.security_pin; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.security_pin IS 'the PIN currently used by the patient. Since this cannot be assumed to be constant over time, the one claimed at the moment of Job-set creation is copied ot that table';
 
 
 --
@@ -669,6 +747,20 @@ COMMENT ON TABLE patients IS 'a list of all patient demog sent via the HL7 MIRTH
 
 
 --
+-- Name: COLUMN patients.patient_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patients.patient_id IS 'just teh dbase created primary key';
+
+
+--
+-- Name: COLUMN patients.mrn; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patients.mrn IS 'the actual medical recrod number from the medical center';
+
+
+--
 -- Name: patients_patient_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
 --
 
@@ -693,7 +785,7 @@ ALTER SEQUENCE patients_patient_id_seq OWNED BY patients.patient_id;
 -- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('patients_patient_id_seq', 78, true);
+SELECT pg_catalog.setval('patients_patient_id_seq', 79, true);
 
 
 --
@@ -748,7 +840,7 @@ ALTER SEQUENCE reports_report_id_seq OWNED BY reports.report_id;
 -- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('reports_report_id_seq', 148, true);
+SELECT pg_catalog.setval('reports_report_id_seq', 150, true);
 
 
 --
@@ -768,8 +860,32 @@ ALTER TABLE public.roles OWNER TO edge;
 -- Name: TABLE roles; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE roles IS 'Combined with table Users, this table defined a user role and privelages
+COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user''s privelages
 ';
+
+
+--
+-- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE status_codes (
+    status_code integer NOT NULL,
+    description character varying(255),
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.status_codes OWNER TO edge;
+
+--
+-- Name: TABLE status_codes; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE status_codes IS 'Maps a job status number to a human readable format. 
+
+Values in the 20s are owned by the COntent-prep app
+
+Values in the 30s are owned by the Content-send app';
 
 
 --
@@ -830,8 +946,8 @@ SELECT pg_catalog.setval('studies_study_id_seq', 236, true);
 CREATE TABLE transactions (
     transaction_id integer NOT NULL,
     job_id integer NOT NULL,
-    status integer NOT NULL,
-    status_message character varying,
+    status_code integer NOT NULL,
+    comments character varying,
     modified_date timestamp with time zone DEFAULT now()
 );
 
@@ -846,10 +962,10 @@ COMMENT ON TABLE transactions IS 'status logging/auditing for jobs defined in ta
 
 
 --
--- Name: COLUMN transactions.status; Type: COMMENT; Schema: public; Owner: edge
+-- Name: COLUMN transactions.status_code; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON COLUMN transactions.status IS 'WHen a job is created by the GUI Token app, the row is created with value 1
+COMMENT ON COLUMN transactions.status_code IS 'WHen a job is created by the GUI Token app, the row is created with value 1
 
 Prepare Content looks for value of one and promites status to 2 on exit
 
@@ -883,7 +999,7 @@ ALTER SEQUENCE transactions_transaction_id_seq OWNED BY transactions.transaction
 -- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('transactions_transaction_id_seq', 14767, true);
+SELECT pg_catalog.setval('transactions_transaction_id_seq', 14774, true);
 
 
 --
@@ -912,7 +1028,7 @@ ALTER TABLE public.users OWNER TO edge;
 -- Name: TABLE users; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE users IS 'Combined with table Rows, this table defeins who can do what on the Edge appliacne Web GUI';
+COMMENT ON TABLE users IS 'Combined with table Roles, this table defines who can do what on the Edge appliacne Web GUI';
 
 
 --
@@ -958,7 +1074,7 @@ ALTER TABLE public.v_exam_status OWNER TO edge;
 --
 
 CREATE VIEW v_job_status AS
-    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status, t1.status_message, t1.modified_date FROM transactions t1 WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
 
 
 ALTER TABLE public.v_job_status OWNER TO edge;
@@ -1066,6 +1182,15 @@ ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::
 --
 
 COPY configurations (key, value, modified_date) FROM stdin;
+dcm-dir-path	/rsna/dcm/	2010-11-02 09:27:06.248449-05
+iti41-repository-unique-id	2.25.1367695025465247913241234123423	2010-11-02 09:31:18.514267-05
+iti41-source-id	2.25.136769502546524791439413804093552525696	2010-11-02 09:31:42.884924-05
+iti8-pix-host	216.185.79.26	2010-11-02 09:32:06.721941-05
+iti8-pix-port	8888	2010-11-02 09:32:25.853192-05
+iti8-reg-host	216.185.79.26	2010-11-02 09:32:45.857296-05
+iti8-reg-port	8890	2010-11-02 09:33:01.407082-05
+tmp-dir-path	/rsna/tmp	2010-11-02 09:33:17.413413-05
+iti41-endpoint-url	http://rsnaclearinghouse.com:9090/services/xdsrepositoryb	2010-11-03 09:14:51.592363-05
 \.
 
 
@@ -1149,6 +1274,7 @@ COPY exams (exam_id, accession_number, patient_id, exam_description, modified_da
 80	IHE64729.13	76	Abdomen CT (1 image)	2010-10-21 21:54:52.214797-05
 81	IHE64729.14	77	Abdomen CT (1 image)	2010-10-21 22:15:47.082129-05
 82	IHE64729.15	78	Abdomen CT (1 image)	2010-10-21 23:02:16.401034-05
+83	IHE759956.0	79	MR Knee	2010-12-17 13:50:01.222665-06
 \.
 
 
@@ -3937,47 +4063,47 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 -- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, security_pin, email_address, modified_date, delay_in_hrs) FROM stdin;
-18	22	4	\N	wyatt.tellis@ucsf.edu	2010-09-28 13:33:18.509-05	72
-19	22	4	\N	wyatt.tellis@ucsf.edu	2010-10-04 17:16:52.477-05	72
-20	31	4	\N	wyatt.tellis@ucsf.edu	2010-10-04 17:17:52.218-05	72
-21	19	4	\N	\N	2010-10-08 18:35:11.189297-05	72
-22	37	4	\N	wyatt.tellis@ucsf.edu	2010-10-11 13:21:56.357-05	72
-23	42	7	\N	mdaly@umm.edu	2010-10-13 10:14:51.061-05	72
-24	43	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 12:40:54.463-05	72
-25	47	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 13:52:20.428-05	72
-26	43	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 14:00:01.121-05	72
-27	48	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 14:11:49.571-05	72
-28	49	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 15:19:51.487-05	72
-29	50	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 18:48:30.689-05	72
-30	51	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 18:59:07.916-05	72
-31	52	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 10:48:12.36-05	72
-32	53	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 13:11:30.597-05	72
-33	54	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 13:22:31.718-05	72
-34	55	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 14:54:05.182-05	72
-35	56	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 15:43:03.094-05	72
-36	57	9	\N	smoore@wustl.edu	2010-10-14 17:00:16.367-05	72
-37	58	9	\N	smoore@wustl.edu	2010-10-14 17:06:26.78-05	72
-38	59	9	\N	smoore@wustl.edu	2010-10-14 17:23:48.224-05	72
-39	60	4	\N	wyatt.tellis@ucsf.edu	2010-10-15 16:34:15.916-05	72
-40	61	4	\N	wyatt.tellis@ucsf.edu	2010-10-15 16:42:01.862-05	72
-41	62	4	\N	wyatt.tellis@ucsf.edu	2010-10-19 13:40:25.65-05	72
-42	63	9	\N	smoore@wustl.edu	2010-10-20 09:05:39.038-05	72
-43	64	9	\N	smoore@wustl.edu	2010-10-20 09:14:25.248-05	72
-44	65	9	\N	smoore@wustl.edu	2010-10-20 09:33:05.617-05	72
-45	66	9	\N	smoore@wustl.edu	2010-10-20 10:09:53.406-05	72
-46	67	9	\N	smoore@wustl.edu	2010-10-20 22:14:51.002-05	72
-47	68	9	\N	smoore@wustl.edu	2010-10-20 22:28:20.517-05	72
-48	69	9	\N	smoore@wustl.edu	2010-10-20 23:06:43.881-05	72
-49	70	9	\N	smoore@wustl.edu	2010-10-20 23:14:26.015-05	72
-50	71	9	\N	smoore@wustl.edu	2010-10-20 23:34:03.854-05	72
-51	72	9	\N	smoore@wustl.edu	2010-10-20 23:50:04.246-05	72
-52	73	9	\N	smoore@wustl.edu	2010-10-21 16:42:26.281-05	72
-53	74	9	\N	smoore@wustl.edu	2010-10-21 16:54:25.291-05	72
-54	75	9	\N	smoore@wustl.edu	2010-10-21 21:09:36.516-05	72
-55	76	9	\N	smoore@wustl.edu	2010-10-21 21:56:34.44-05	72
-56	77	9	\N	smoore@wustl.edu	2010-10-21 22:18:06.901-05	72
-57	78	9	\N	smoore@wustl.edu	2010-10-21 23:05:03.876-05	72
+COPY job_sets (job_set_id, patient_id, user_id, security_pin, email_address, modified_date, delay_in_hrs, single_use_patient_id) FROM stdin;
+18	22	4	\N	wyatt.tellis@ucsf.edu	2010-09-28 13:33:18.509-05	72	\N
+19	22	4	\N	wyatt.tellis@ucsf.edu	2010-10-04 17:16:52.477-05	72	\N
+20	31	4	\N	wyatt.tellis@ucsf.edu	2010-10-04 17:17:52.218-05	72	\N
+21	19	4	\N	\N	2010-10-08 18:35:11.189297-05	72	\N
+22	37	4	\N	wyatt.tellis@ucsf.edu	2010-10-11 13:21:56.357-05	72	\N
+23	42	7	\N	mdaly@umm.edu	2010-10-13 10:14:51.061-05	72	\N
+24	43	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 12:40:54.463-05	72	\N
+25	47	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 13:52:20.428-05	72	\N
+26	43	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 14:00:01.121-05	72	\N
+27	48	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 14:11:49.571-05	72	\N
+28	49	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 15:19:51.487-05	72	\N
+29	50	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 18:48:30.689-05	72	\N
+30	51	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 18:59:07.916-05	72	\N
+31	52	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 10:48:12.36-05	72	\N
+32	53	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 13:11:30.597-05	72	\N
+33	54	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 13:22:31.718-05	72	\N
+34	55	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 14:54:05.182-05	72	\N
+35	56	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 15:43:03.094-05	72	\N
+36	57	9	\N	smoore@wustl.edu	2010-10-14 17:00:16.367-05	72	\N
+37	58	9	\N	smoore@wustl.edu	2010-10-14 17:06:26.78-05	72	\N
+38	59	9	\N	smoore@wustl.edu	2010-10-14 17:23:48.224-05	72	\N
+39	60	4	\N	wyatt.tellis@ucsf.edu	2010-10-15 16:34:15.916-05	72	\N
+40	61	4	\N	wyatt.tellis@ucsf.edu	2010-10-15 16:42:01.862-05	72	\N
+41	62	4	\N	wyatt.tellis@ucsf.edu	2010-10-19 13:40:25.65-05	72	\N
+42	63	9	\N	smoore@wustl.edu	2010-10-20 09:05:39.038-05	72	\N
+43	64	9	\N	smoore@wustl.edu	2010-10-20 09:14:25.248-05	72	\N
+44	65	9	\N	smoore@wustl.edu	2010-10-20 09:33:05.617-05	72	\N
+45	66	9	\N	smoore@wustl.edu	2010-10-20 10:09:53.406-05	72	\N
+46	67	9	\N	smoore@wustl.edu	2010-10-20 22:14:51.002-05	72	\N
+47	68	9	\N	smoore@wustl.edu	2010-10-20 22:28:20.517-05	72	\N
+48	69	9	\N	smoore@wustl.edu	2010-10-20 23:06:43.881-05	72	\N
+49	70	9	\N	smoore@wustl.edu	2010-10-20 23:14:26.015-05	72	\N
+50	71	9	\N	smoore@wustl.edu	2010-10-20 23:34:03.854-05	72	\N
+51	72	9	\N	smoore@wustl.edu	2010-10-20 23:50:04.246-05	72	\N
+52	73	9	\N	smoore@wustl.edu	2010-10-21 16:42:26.281-05	72	\N
+53	74	9	\N	smoore@wustl.edu	2010-10-21 16:54:25.291-05	72	\N
+54	75	9	\N	smoore@wustl.edu	2010-10-21 21:09:36.516-05	72	\N
+55	76	9	\N	smoore@wustl.edu	2010-10-21 21:56:34.44-05	72	\N
+56	77	9	\N	smoore@wustl.edu	2010-10-21 22:18:06.901-05	72	\N
+57	78	9	\N	smoore@wustl.edu	2010-10-21 23:05:03.876-05	72	\N
 \.
 
 
@@ -4044,52 +4170,52 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 -- Data for Name: patient_rsna_ids; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patient_rsna_ids (map_id, rsna_id, patient_id, modified_date, patient_alias_lastname, patient_alias_firstname, registered) FROM stdin;
-40	0001-00069-123456	69	2010-10-20 23:07:04.996458-05	last	first	t
-41	0001-00070-123456	70	2010-10-20 23:15:06.979919-05	last	first	t
-42	0001-00071-123456	71	2010-10-20 23:35:12.878796-05	last	first	t
-43	0001-00072-123456	72	2010-10-20 23:51:28.536726-05	last	first	t
-44	0001-00073-123456	73	2010-10-21 16:41:47.996-05	last	first	f
-45	0001-00074-123456	74	2010-10-21 16:54:44.298632-05	last	first	t
-46	0001-00075-123456	75	2010-10-21 21:44:06.485628-05	last	first	t
-5	0001-00016-123456	16	2010-10-08 08:40:30.530843-05	last	first	f
-7	0001-00020-asdfad	20	2010-10-08 08:40:30.530843-05	last	first	f
-47	0001-00076-123456	76	2010-10-21 21:57:23.912483-05	last	first	t
-2	0001-00007-123456	7	2010-10-08 08:40:30.530843-05	last	first	f
-48	0001-00077-123456	77	2010-10-21 22:19:06.370174-05	last	first	t
-9	0001-00022-123456	22	2010-10-08 09:32:52.418788-05	last	first	t
-10	0001-00031-123456	31	2010-10-08 11:05:39.917927-05	last	first	t
-49	0001-00078-123456	78	2010-10-21 23:06:04.051559-05	last	first	t
-8	0001-00019-kjhlkj	19	2010-10-08 19:50:33.765973-05	last	first	t
-11	0001-00026-222222	26	2010-10-11 01:24:10.287-05	last	first	f
-12	0001-00023-123456	23	2010-10-11 10:09:57.723-05	last	first	f
-13	0001-00037-123456	37	2010-10-11 13:21:32.78-05	last	first	f
-14	0001-00042-123456	42	2010-10-13 10:20:21.31631-05	last	first	t
-15	0001-00043-123456	43	2010-10-13 13:20:29.139621-05	last	first	t
-17	0001-00044-123456	44	2010-10-13 14:05:01.116-05	last	first	f
-18	0001-00048-123456	48	2010-10-13 14:22:16.3613-05	last	first	t
-16	0001-00047-123456	47	2010-10-13 14:50:51.814238-05	last	first	t
-19	0001-00049-123456	49	2010-10-13 15:21:06.452098-05	last	first	t
-20	0001-00050-123456	50	2010-10-13 19:02:42.080275-05	last	first	t
-21	0001-00051-123456	51	2010-10-13 19:20:54.598033-05	last	first	t
-22	0001-00052-123456	52	2010-10-14 11:46:14.69329-05	last	first	t
-23	0001-00053-123456	53	2010-10-14 13:12:08.547994-05	last	first	t
-24	0001-00054-123456	54	2010-10-14 13:25:19.117921-05	last	first	t
-25	0001-00055-123456	55	2010-10-14 15:26:33.965238-05	last	first	t
-27	0001-00045-123456	45	2010-10-14 15:50:32.095-05	last	first	f
-26	0001-00056-123456	56	2010-10-14 15:56:15.018532-05	last	first	t
-28	0001-00057-123456	57	2010-10-14 17:01:22.982063-05	last	first	t
-29	0001-00058-123456	58	2010-10-14 17:17:07.241892-05	last	first	t
-30	0001-00059-123456	59	2010-10-14 17:27:14.185964-05	last	first	t
-31	0001-00060-123456	60	2010-10-15 16:53:29.772848-05	last	first	t
-32	0001-00061-123456	61	2010-10-15 17:17:25.055448-05	last	first	t
-33	0001-00062-123456	62	2010-10-19 13:55:29.179392-05	last	first	t
-34	0001-00063-123456	63	2010-10-20 09:07:24.585528-05	last	first	t
-35	0001-00064-123456	64	2010-10-20 09:19:36.027599-05	last	first	t
-36	0001-00065-123456	65	2010-10-20 09:35:18.050534-05	last	first	t
-37	0001-00066-123456	66	2010-10-20 10:11:34.318164-05	last	first	t
-38	0001-00067-123456	67	2010-10-20 22:17:32.366721-05	last	first	t
-39	0001-00068-123456	68	2010-10-20 22:45:44.461065-05	last	first	t
+COPY patient_rsna_ids (map_id, rsna_id, patient_id, modified_date, patient_alias_lastname, patient_alias_firstname, registered, email_address, security_pin) FROM stdin;
+40	0001-00069-123456	69	2010-10-20 23:07:04.996458-05	last	first	t	\N	\N
+42	0001-00071-123456	71	2010-10-20 23:35:12.878796-05	last	first	t	\N	\N
+43	0001-00072-123456	72	2010-10-20 23:51:28.536726-05	last	first	t	\N	\N
+44	0001-00073-123456	73	2010-10-21 16:41:47.996-05	last	first	f	\N	\N
+45	0001-00074-123456	74	2010-10-21 16:54:44.298632-05	last	first	t	\N	\N
+46	0001-00075-123456	75	2010-10-21 21:44:06.485628-05	last	first	t	\N	\N
+5	0001-00016-123456	16	2010-10-08 08:40:30.530843-05	last	first	f	\N	\N
+7	0001-00020-asdfad	20	2010-10-08 08:40:30.530843-05	last	first	f	\N	\N
+47	0001-00076-123456	76	2010-10-21 21:57:23.912483-05	last	first	t	\N	\N
+2	0001-00007-123456	7	2010-10-08 08:40:30.530843-05	last	first	f	\N	\N
+48	0001-00077-123456	77	2010-10-21 22:19:06.370174-05	last	first	t	\N	\N
+9	0001-00022-123456	22	2010-10-08 09:32:52.418788-05	last	first	t	\N	\N
+10	0001-00031-123456	31	2010-10-08 11:05:39.917927-05	last	first	t	\N	\N
+49	0001-00078-123456	78	2010-10-21 23:06:04.051559-05	last	first	t	\N	\N
+8	0001-00019-kjhlkj	19	2010-10-08 19:50:33.765973-05	last	first	t	\N	\N
+11	0001-00026-222222	26	2010-10-11 01:24:10.287-05	last	first	f	\N	\N
+12	0001-00023-123456	23	2010-10-11 10:09:57.723-05	last	first	f	\N	\N
+13	0001-00037-123456	37	2010-10-11 13:21:32.78-05	last	first	f	\N	\N
+14	0001-00042-123456	42	2010-10-13 10:20:21.31631-05	last	first	t	\N	\N
+15	0001-00043-123456	43	2010-10-13 13:20:29.139621-05	last	first	t	\N	\N
+17	0001-00044-123456	44	2010-10-13 14:05:01.116-05	last	first	f	\N	\N
+18	0001-00048-123456	48	2010-10-13 14:22:16.3613-05	last	first	t	\N	\N
+16	0001-00047-123456	47	2010-10-13 14:50:51.814238-05	last	first	t	\N	\N
+19	0001-00049-123456	49	2010-10-13 15:21:06.452098-05	last	first	t	\N	\N
+20	0001-00050-123456	50	2010-10-13 19:02:42.080275-05	last	first	t	\N	\N
+21	0001-00051-123456	51	2010-10-13 19:20:54.598033-05	last	first	t	\N	\N
+22	0001-00052-123456	52	2010-10-14 11:46:14.69329-05	last	first	t	\N	\N
+23	0001-00053-123456	53	2010-10-14 13:12:08.547994-05	last	first	t	\N	\N
+24	0001-00054-123456	54	2010-10-14 13:25:19.117921-05	last	first	t	\N	\N
+25	0001-00055-123456	55	2010-10-14 15:26:33.965238-05	last	first	t	\N	\N
+27	0001-00045-123456	45	2010-10-14 15:50:32.095-05	last	first	f	\N	\N
+26	0001-00056-123456	56	2010-10-14 15:56:15.018532-05	last	first	t	\N	\N
+28	0001-00057-123456	57	2010-10-14 17:01:22.982063-05	last	first	t	\N	\N
+29	0001-00058-123456	58	2010-10-14 17:17:07.241892-05	last	first	t	\N	\N
+30	0001-00059-123456	59	2010-10-14 17:27:14.185964-05	last	first	t	\N	\N
+31	0001-00060-123456	60	2010-10-15 16:53:29.772848-05	last	first	t	\N	\N
+32	0001-00061-123456	61	2010-10-15 17:17:25.055448-05	last	first	t	\N	\N
+33	0001-00062-123456	62	2010-10-19 13:55:29.179392-05	last	first	t	\N	\N
+34	0001-00063-123456	63	2010-10-20 09:07:24.585528-05	last	first	t	\N	\N
+35	0001-00064-123456	64	2010-10-20 09:19:36.027599-05	last	first	t	\N	\N
+36	0001-00065-123456	65	2010-10-20 09:35:18.050534-05	last	first	t	\N	\N
+37	0001-00066-123456	66	2010-10-20 10:11:34.318164-05	last	first	t	\N	\N
+38	0001-00067-123456	67	2010-10-20 22:17:32.366721-05	last	first	t	\N	\N
+39	0001-00068-123456	68	2010-10-20 22:45:44.461065-05	last	first	t	\N	\N
+41	1234-5678-1234-5678-1234-5678	70	2010-12-14 13:04:07.617048-06	last	first	t	\N	\N
 \.
 
 
@@ -4160,6 +4286,7 @@ COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip
 76	554468902	Thu^Conebd^	1914-12-01	M	436 Adams Lane	Atlanta	GA	30333	2010-10-21 21:54:52.153677-05
 77	764181133	Thu^Conebe^	1915-12-01	M	720 Woodland Ave	Atlanta	GA	30338	2010-10-21 22:15:47.018459-05
 78	276730794	Thu^Conebf^	1916-12-01	M	858 Elm St	Atlanta	GA	30338	2010-10-21 23:02:16.338895-05
+79	144443352	Wyatt^Tellis^	1980-12-25	M	528 Jefferson Ave	Atlanta	GA	30317	2010-12-17 13:50:01.187707-06
 \.
 
 
@@ -4298,6 +4425,8 @@ COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_te
 146	81	\N	FINALIZED	2010-10-22 08:13:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 22:15:47.139135-05
 147	82	\N	ORDERED	2010-10-21 22:59:00-05					2010-10-21 23:02:13.258522-05
 148	82	\N	FINALIZED	2010-10-22 08:59:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 23:02:16.455285-05
+149	83	\N	ORDERED	2010-12-17 13:50:00-06					2010-12-17 13:49:58.04392-06
+150	83	\N	FINALIZED	2010-12-17 23:50:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-12-17 13:50:01.246184-06
 \.
 
 
@@ -4306,6 +4435,31 @@ COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_te
 --
 
 COPY roles (role_id, role_description, modified_date) FROM stdin;
+\.
+
+
+--
+-- Data for Name: status_codes; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY status_codes (status_code, description, modified_date) FROM stdin;
+31	Started processing input data	2010-10-22 09:58:07.496506-05
+21	Waiting for report finalization	2010-10-22 11:59:15.243445-05
+23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05
+30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05
+22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
+32	Started KOS generation	2010-10-22 09:58:07.496506-05
+33	Stared patient registration	2010-10-22 09:58:07.496506-05
+34	Started document submission	2010-10-22 09:58:07.496506-05
+40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05
+1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05
+-23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05
+-21	Unable to find images	2010-10-22 11:59:15.243445-05
+-32	Failed to generate KOS	2010-11-02 09:39:45.53873-05
+-30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05
+-20	Failed to prepare content	2010-10-22 09:58:07.496506-05
+-33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05
+-34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05
 \.
 
 
@@ -4524,343 +4678,341 @@ COPY studies (study_id, study_uid, exam_id, study_description, study_date, modif
 -- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY transactions (transaction_id, job_id, status, status_message, modified_date) FROM stdin;
+COPY transactions (transaction_id, job_id, status_code, comments, modified_date) FROM stdin;
 14419	16	1	Queued	2010-09-28 13:33:18.555-05
-14420	16	2000	Started prepare content	2010-09-28 13:33:19.284616-05
-14421	16	2	Ready to transfer to clearinghouse.	2010-09-28 13:33:36.380203-05
+14493	19	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14509	20	1	Queued	2010-10-13 10:14:51.1-05
-14510	20	2000	Started prepare content	2010-10-13 10:14:52.014031-05
-14470	19	2	Ready to transfer to clearinghouse	2010-10-08 19:26:25.742284-05
-14424	16	2	Ready to transfer to Clearinghouse	2010-09-29 09:59:55.393819-05
-14425	16	2	Ready to transfer to clearinghouse	2010-10-04 14:11:04.219847-05
-14426	16	2	Ready to transfer to clearinghouse	2010-10-04 14:19:49.489162-05
-14427	16	2	Ready to transfer to clearinghouse	2010-10-04 14:34:06.300528-05
-14428	16	2	Ready to transfer to clearinghouse	2010-10-04 15:07:29.74469-05
-14429	16	2	Ready to transfer to clearinghouse	2010-10-04 16:11:47.949786-05
+14494	19	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14495	19	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14496	19	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14497	19	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14430	17	1	Queued	2010-10-04 17:16:52.517-05
-14431	17	2000	Started prepare content	2010-10-04 17:16:53.016984-05
-14432	17	2	Ready to transfer to clearinghouse.	2010-10-04 17:17:03.944639-05
+14464	18	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14461	16	37	Ready to transfer to clearinghouse	2010-10-22 12:05:44.499269-05
 14433	18	1	Queued	2010-10-04 17:17:52.262-05
-14434	18	2000	Started prepare content	2010-10-04 17:17:52.79899-05
-14435	18	2	Ready to transfer to clearinghouse.	2010-10-04 17:18:00.044471-05
-14436	18	2	Ready to transfer to clearinghouse	2010-10-05 18:37:34.230776-05
-14437	18	2	Ready to transfer to clearinghouse	2010-10-06 09:29:45.059336-05
-14440	16	2	Ready to transfer to clearinghouse	2010-10-06 17:34:57.196082-05
-14441	16	2	Ready to transfer to clearinghouse	2010-10-06 18:31:23.244645-05
-14442	16	2	Ready to transfer to clearinghouse	2010-10-06 18:35:17.072333-05
-14443	16	2	Ready to transfer to clearinghouse	2010-10-06 18:41:35.704041-05
-14444	16	2	Ready to transfer to clearinghouse	2010-10-07 10:01:19.824638-05
-14445	16	2	Ready to transfer to clearinghouse	2010-10-07 13:25:04.322051-05
-14446	16	2	Ready to transfer to clearinghouse	2010-10-07 13:42:32.467116-05
-14447	16	2	Ready to transfer to clearinghouse	2010-10-07 13:58:27.777353-05
-14448	16	2	Ready to transfer to clearinghouse	2010-10-07 16:47:28.475443-05
-14449	16	2	Ready to transfer to clearinghouse	2010-10-07 18:14:49.715313-05
-14450	16	2	Ready to transfer to clearinghouse	2010-10-07 18:17:13.259983-05
-14451	16	2	Ready to transfer to clearinghous	2010-10-07 18:32:55.286336-05
-14452	16	2	Ready to transfer to clearinghouse	2010-10-07 18:42:49.837502-05
-14453	16	2	Ready to transfer to clearinghouse	2010-10-07 19:21:11.68506-05
-14454	16	2	Ready to transfer to clearinghouse	2010-10-07 19:28:01.313531-05
-14455	16	2	Ready to transfer to clearinghouse	2010-10-07 19:41:46.662943-05
-14456	16	2	Ready to transfer to clearinghouse	2010-10-07 19:53:47.36953-05
-14457	16	2	Ready to transfer to clearinghouse	2010-10-07 19:56:19.706731-05
-14458	16	2	Ready to transfer to clearinghouse	2010-10-08 08:59:42.683203-05
-14459	16	2	Ready to transfer to clearinghouse	2010-10-08 09:33:59.848078-05
-14460	16	2	Ready to transfer to clearinghouse	2010-10-08 10:21:19.122797-05
-14438	18	2	Ready to transfer to clearinghouse	2010-10-08 10:38:34.923068-05
-14462	18	2	Ready to transfer to clearinghouse	2010-10-08 11:17:27.345241-05
-14463	18	2	Ready to transfer to clearinghouse	2010-10-08 11:51:26.69518-05
-14464	18	4	Transferred to clearinghouse	2010-10-08 11:56:05.177-05
-14439	17	2	Transferred to clearinghouse	2010-10-08 18:23:52.007476-05
-14461	16	4	Ready to transfer to clearinghouse	2010-10-08 18:24:02.013404-05
-14465	17	2	Ready to transfer to clearinghouse	2010-10-08 18:33:25.54836-05
-14466	17	4	Transferred to clearinghouse	2010-10-08 18:35:55.888-05
-14467	19	2	Ready to transfer to clearinghouse	2010-10-08 18:44:47.708948-05
-14511	20	2	Ready to transfer to clearinghouse.	2010-10-13 10:15:11.259738-05
-14468	19	2	Ready to transfer to clearinghouse	2010-10-08 19:07:48.78743-05
-14469	19	2	Ready to transfer to clearinghouse	2010-10-08 19:22:26.005563-05
-14471	19	2	Ready to tranfer to clearinghouse	2010-10-08 19:28:38.596873-05
-14472	19	2	Ready to transfer to clearinghouse	2010-10-08 19:42:26.059724-05
-14473	19	2	Ready to transfer to clearinghouse	2010-10-08 19:45:01.25487-05
-14474	19	2	Ready to transfer to clearinghouse	2010-10-08 19:58:39.377303-05
-14475	19	2	Ready to transfer to clearinghouse	2010-10-08 21:19:01.600254-05
-14476	19	2	Ready to transfer to clearinghouse	2010-10-08 23:21:16.811201-05
-14477	19	2	Ready to transfer to clearinghouse	2010-10-08 23:24:55.478347-05
-14478	19	2	Ready to transfer to clearinghouse	2010-10-08 23:27:05.545905-05
-14479	19	2	Ready to transfer to clearinghouse	2010-10-08 23:29:03.798432-05
-14480	19	2	Ready to transfer to clearinghouse	2010-10-08 23:30:26.837245-05
-14481	19	2	Ready to transfer to clearinghouse	2010-10-08 23:33:16.10067-05
-14482	19	2	Ready to transfer to clearinghouse	2010-10-08 23:37:32.669851-05
-14483	19	2	Ready to transfer to clearinghouse	2010-10-08 23:41:37.275386-05
-14484	19	2	Ready to transfer to clearinghouse	2010-10-08 23:41:47.143536-05
-14485	19	2	Ready to transfer to clearinghouse	2010-10-08 23:43:56.035645-05
-14486	19	2	Ready to transfer to clearinghouse	2010-10-08 23:44:24.676839-05
-14487	19	2	Ready to transfer to clearinghouse	2010-10-08 23:44:33.99952-05
-14488	19	2	Ready to transfer to clearinghouse	2010-10-08 23:49:09.918876-05
-14499	19	2	Ready to transfer to clearinghouse	2010-10-11 11:12:39.813702-05
-14489	19	2	Ready to transfer to clearinghouse	2010-10-08 23:49:30.203899-05
-14490	19	2	Ready to transfer to clearinghouse	2010-10-08 23:49:43.461199-05
-14491	19	2	Ready to transfer to clearinghouse	2010-10-08 23:50:26.516428-05
-14492	19	2	Ready to transfer to clearinghouse	2010-10-10 20:47:36.833375-05
-14493	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:48:10.095-05
-14494	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:48:36.048-05
-14495	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:48:56.373-05
-14496	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:49:04.523-05
-14497	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:49:12.992-05
-14498	19	2	Ready to transfer to clearinghouse	2010-10-11 11:09:55.385133-05
-14500	19	2	Ready to transfer to clearninghouse	2010-10-11 11:17:25.468973-05
-14501	19	2	Ready to transfer to clearinghouse	2010-10-11 11:20:33.387952-05
-14502	19	2	Transferred to clearinghouse	2010-10-11 11:25:31.310547-05
-14503	19	2	Ready to transfer to clearinghouse	2010-10-11 11:28:57.604154-05
-14504	19	2	Ready to transfer to clearinghouse	2010-10-11 12:10:11.816904-05
-14505	19	2	Ready to transfer to clearinghouse	2010-10-11 13:08:09.087413-05
-14506	19	2	Ready to transfer to clearinghouse	2010-10-11 13:10:45.201728-05
-14507	19	2	Ready to transfer to clearinghouse	2010-10-11 17:17:53.053261-05
-14508	19	4	Transferred to clearinghouse	2010-10-11 17:20:12.817-05
+14466	17	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14508	19	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14513	20	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14512	20	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14689	42	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14693	43	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14698	44	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14702	45	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14707	46	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14712	47	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14713	48	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14721	49	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14604	36	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14525	24	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14526	25	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14539	23	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14545	26	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14546	27	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14608	37	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14612	38	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14564	29	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14566	30	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14567	28	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14574	31	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14580	32	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14585	33	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14622	39	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14592	34	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14598	35	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14731	51	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14736	52	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14741	53	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14745	54	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14750	55	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14755	56	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14760	57	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14765	58	23	Started prepare content	2010-10-22 12:53:32.492078-05
 14514	21	1	Queued	2010-10-13 12:40:54.676-05
-14513	20	4	Transferred to clearinghouse	2010-10-13 11:37:49.796-05
-14512	20	4	Transferred to clearinghouse	2010-10-13 11:38:33.789349-05
-14515	21	2000	Started prepare content	2010-10-13 12:40:56.266911-05
 14517	22	1	Queued	2010-10-13 13:52:20.467-05
-14516	21	2	Ready to transfer to clearinghouse.	2010-10-13 12:41:37.821396-05
-14518	22	2000	Started prepare content	2010-10-13 13:52:21.489312-05
-14519	22	2	Ready to transfer to clearinghouse.	2010-10-13 13:52:40.713234-05
-14601	35	2	Ready to transfer to clearinghouse	2010-10-14 16:28:37.29218-05
+14421	16	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14470	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14424	16	30	Ready to transfer to Clearinghouse	2010-10-22 12:03:25.828982-05
+14425	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14426	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
 14603	36	1	Queued	2010-10-14 17:00:16.413-05
-14605	36	2	Ready to transfer to clearinghouse.	2010-10-14 17:00:21.132497-05
 14607	37	1	Queued	2010-10-14 17:06:26.823-05
-14609	37	2	Ready to transfer to clearinghouse.	2010-10-14 17:06:59.706036-05
 14611	38	1	Queued	2010-10-14 17:23:48.265-05
-14613	38	2	Ready to transfer to clearinghouse.	2010-10-14 17:25:00.855335-05
-14615	38	2	Ready to transfer to clearinghouse	2010-10-15 11:46:23.678292-05
-14617	38	2	Ready to transfer to clearinghouse	2010-10-15 12:02:28.084723-05
-14619	38	3	Preparing content for transfer to clearinghouse	2010-10-15 12:18:03.586-05
 14621	39	1	Queued	2010-10-15 16:34:15.965-05
-14623	39	2	Ready to transfer to clearinghouse.	2010-10-15 16:35:42.228355-05
-14625	40	2000	Started prepare content	2010-10-15 16:42:02.569402-05
-14627	39	2	Ready to transfer to clearinghouse	2010-10-15 17:17:10.17913-05
-14629	40	2	Ready to transfer to clearinghouse	2010-10-15 17:19:45.823138-05
-14633	39	3	Preparing content for transfer to clearinghouse	2010-10-15 18:35:16.591-05
-14631	40	2	Ready to transfer to clearinghouse	2010-10-15 18:39:02.083873-05
-14635	40	3	Preparing content for transfer to clearinghouse	2010-10-15 18:40:03.258-05
-14637	39	2	Ready to transfer to clearinghouse	2010-10-15 18:51:53.539723-05
-14639	40	3	Preparing content for transfer to clearinghouse	2010-10-15 19:47:25.503-05
-14641	39	2	Ready to transfer to clearinghouse	2010-10-15 19:53:27.312148-05
-14643	39	2	Ready to transfer to clearinghouse	2010-10-15 20:08:57.158316-05
-14645	39	3	Preparing content for transfer to clearinghouse	2010-10-15 20:10:52.986-05
-14647	40	3	Preparing content for transfer to clearinghouse	2010-10-15 20:13:52.631-05
-14649	39	3	Preparing content for transfer to clearinghouse	2010-10-16 22:28:27.04-05
-14651	39	3	Preparing content for transfer to clearinghouse	2010-10-17 17:40:46.498-05
-14653	39	2	Ready to transfer to clearinghouse	2010-10-18 14:41:37.82965-05
-14657	41	2000	Started prepare content	2010-10-19 13:40:27.186044-05
-14659	41	3	Preparing content for transfer to clearinghouse	2010-10-19 13:55:29.36-05
-14661	41	4	Transferred to clearinghouse	2010-10-19 13:55:29.36-05
-14690	42	2	Ready to transfer to clearinghouse.	2010-10-20 09:05:45.402967-05
-14655	39	2	Ready to transfer to clearinghouse	2010-10-19 14:07:49.08144-05
-14663	39	2	Ready to transfer to clearinghouse	2010-10-19 14:14:17.835335-05
-14590	33	2	Ready to transfer to clearinghouse	2010-10-19 17:01:23.770904-05
-14668	33	3	Preparing content for transfer to clearinghouse	2010-10-19 17:01:28.417-05
-14669	33	3	Preparing content for transfer to clearinghouse	2010-10-19 17:01:28.966-05
-14665	40	2	Ready to transfer to clearinghouse	2010-10-19 17:25:44.490553-05
-14670	40	3	Preparing content for transfer to clearinghouse	2010-10-19 17:25:54.251-05
-14667	39	2	Ready to transfer to clearinghouse	2010-10-19 17:25:57.395878-05
-14691	42	3	Preparing content for transfer to clearinghouse	2010-10-20 09:07:24.631-05
+14619	38	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14633	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14635	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14639	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14645	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14647	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14649	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14651	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14659	41	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14668	33	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14669	33	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14670	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14692	43	1	Queued	2010-10-20 09:14:25.289-05
-14673	39	3	Preparing content for transfer to clearinghouse	2010-10-19 17:43:37.776-05
-14671	39	2	Ready to transfer to clearinghouse	2010-10-19 17:43:41.823909-05
-14672	40	2	Ready to transfer to clearinghouse	2010-10-19 17:43:52.998282-05
-14674	39	3	Preparing content for transfer to clearinghouse	2010-10-19 17:44:17.948-05
-14675	40	3	Preparing content for transfer to clearinghouse	2010-10-19 17:44:20.087-05
-14676	39	2	Ready to transfer to clearinghouse	2010-10-19 18:32:10.966374-05
-14677	40	2	Ready to transfer to clearinghouse	2010-10-19 18:32:23.7209-05
-14678	39	2	Ready to transfer to clearinghouse	2010-10-19 19:06:20.000906-05
-14680	39	3	Preparing content for transfer to clearinghouse	2010-10-19 19:06:23.368-05
-14679	40	2	Ready to transfer to clearinghouse	2010-10-19 19:06:33.555842-05
-14682	40	3	Preparing content for transfer to clearinghouse	2010-10-19 19:09:21.402-05
-14681	39	2	Ready to transfer to clearinghouse	2010-10-19 19:23:39.237966-05
-14683	40	2	Ready to transfer to clearinghouse	2010-10-19 19:23:49.130663-05
-14684	39	3	Preparing content for transfer to clearinghouse	2010-10-19 19:23:49.059-05
-14685	39	4	Transferred to clearinghouse	2010-10-19 19:23:49.059-05
-14686	40	3	Preparing content for transfer to clearinghouse	2010-10-19 19:26:38.963-05
-14687	40	4	Transferred to clearinghouse	2010-10-19 19:26:38.963-05
+14691	42	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14673	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14674	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14675	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14680	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14682	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14684	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14686	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14688	42	1	Queued	2010-10-20 09:05:39.071-05
-14689	42	2000	Started prepare content	2010-10-20 09:05:39.93479-05
-14693	43	2000	Started prepare content	2010-10-20 09:14:26.213948-05
-14694	43	2	Ready to transfer to clearinghouse.	2010-10-20 09:14:28.633582-05
-14695	43	3	Preparing content for transfer to clearinghouse	2010-10-20 09:19:36.049-05
-14696	43	4	Transferred to clearinghouse	2010-10-20 09:19:36.049-05
+14695	43	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14700	44	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14704	45	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14697	44	1	Queued	2010-10-20 09:33:05.657-05
-14698	44	2000	Started prepare content	2010-10-20 09:33:06.142115-05
-14699	44	2	Ready to transfer to clearinghouse.	2010-10-20 09:33:08.425468-05
-14700	44	3	Preparing content for transfer to clearinghouse	2010-10-20 09:35:18.079-05
+14709	46	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14716	48	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14701	45	1	Queued	2010-10-20 10:09:53.463-05
-14702	45	2000	Started prepare content	2010-10-20 10:09:54.782583-05
-14703	45	2	Ready to transfer to clearinghouse.	2010-10-20 10:09:55.744739-05
-14704	45	3	Preparing content for transfer to clearinghouse	2010-10-20 10:11:34.331-05
-14705	45	4	Transferred to clearinghouse	2010-10-20 10:11:34.331-05
+14717	47	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14723	49	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14706	46	1	Queued	2010-10-20 22:14:51.045-05
-14707	46	2000	Started prepare content	2010-10-20 22:14:51.991321-05
-14708	46	2	Ready to transfer to clearinghouse.	2010-10-20 22:14:53.227133-05
-14709	46	3	Document prepared for transfer to clearinghouse	2010-10-20 22:17:59.901-05
+14661	41	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14685	39	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14710	47	1	Queued	2010-10-20 22:28:20.563-05
 14711	48	1	Queued	2010-10-20 22:28:20.701-05
-14712	47	2000	Started prepare content	2010-10-20 22:28:21.016174-05
-14713	48	2000	Started prepare content	2010-10-20 22:28:22.590718-05
-14714	47	2	Ready to transfer to clearinghouse.	2010-10-20 22:28:22.714822-05
-14715	48	2	Ready to transfer to clearinghouse.	2010-10-20 22:28:24.686569-05
-14716	48	3	Document prepared for transfer to clearinghouse	2010-10-20 22:46:11.636-05
-14717	47	3	Document prepared for transfer to clearinghouse	2010-10-20 22:47:04.385-05
-14718	47	4	Transferred to clearinghouse	2010-10-20 22:57:20.849769-05
-14719	48	4	Transferred to clearinghouse	2010-10-20 22:57:28.005691-05
+14687	40	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14696	43	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14705	45	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14718	47	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14720	49	1	Queued	2010-10-20 23:06:43.943-05
-14721	49	2000	Started prepare content	2010-10-20 23:06:44.648114-05
-14722	49	2	Ready to transfer to clearinghouse.	2010-10-20 23:06:45.899823-05
-14723	49	3	Document prepared for transfer to clearinghouse	2010-10-20 23:07:33.927-05
-14724	49	4	Transferred to clearinghouse	2010-10-20 23:10:46.581733-05
+14719	48	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14724	49	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14725	50	1	Queued	2010-10-20 23:14:26.063-05
-14726	50	2000	Started prepare content	2010-10-20 23:14:26.536765-05
-14727	50	2	Ready to transfer to clearinghouse.	2010-10-20 23:14:27.897885-05
+14602	35	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14520	23	1	Queued	2010-10-13 14:00:01.169-05
-14602	35	4	Transferred to clearinghouse	2010-10-14 16:52:31.792-05
-14604	36	2000	Started prepare content	2010-10-14 17:00:17.15723-05
 14523	24	1	Queued	2010-10-13 14:11:49.614-05
 14524	25	1	Queued	2010-10-13 14:11:49.691-05
-14525	24	2000	Started prepare content	2010-10-13 14:11:50.332088-05
-14526	25	2000	Started prepare content	2010-10-13 14:11:51.630105-05
-14527	24	2	Ready to transfer to clearinghouse.	2010-10-13 14:12:26.05004-05
-14528	25	2	Ready to transfer to clearinghouse.	2010-10-13 14:12:45.932604-05
-14529	25	4	Transferred to clearinghouse	2010-10-13 14:30:10.354-05
-14530	25	4	Transferred to clearinghouse	2010-10-13 14:30:17.464-05
-14531	25	4	Transferred to clearinghouse	2010-10-13 14:30:24.366-05
-14532	25	4	Transferred to clearinghouse	2010-10-13 14:30:31.293-05
-14533	25	4	Transferred to clearinghouse	2010-10-13 14:30:38.219-05
-14534	24	4	Transferred to clearinghouse	2010-10-13 14:30:46.69-05
-14535	24	4	Transferred to clearinghouse	2010-10-13 14:30:53.572-05
-14536	24	4	Transferred to clearinghouse	2010-10-13 14:31:00.471-05
-14537	24	4	Transferred to clearinghouse	2010-10-13 14:31:07.359-05
-14538	22	4	Transferred to clearinghouse	2010-10-13 14:54:19.19-05
-14539	23	2000	Started prepare content	2010-10-13 15:09:46.386216-05
-14540	23	2	Ready to transfer to clearinghouse.	2010-10-13 15:10:00.588434-05
-14541	21	4	Transferred to clearinghouse	2010-10-13 15:14:45.515-05
-14542	23	4	Transferred to clearinghouse	2010-10-13 15:14:52.504-05
+14601	35	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14605	36	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14609	37	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14613	38	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14615	38	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14617	38	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14623	39	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14627	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14629	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14631	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14570	29	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14571	30	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14543	26	1	Queued	2010-10-13 15:19:51.531-05
 14544	27	1	Queued	2010-10-13 15:19:51.624-05
-14545	26	2000	Started prepare content	2010-10-13 15:19:52.688228-05
-14546	27	2000	Started prepare content	2010-10-13 15:19:53.900016-05
-14547	26	2	Ready to transfer to clearinghouse.	2010-10-13 15:20:24.867861-05
-14548	27	2	Ready to transfer to clearinghouse.	2010-10-13 15:20:50.801757-05
-14549	26	4	Transferred to clearinghouse	2010-10-13 15:24:34.526-05
-14550	27	4	Transferred to clearinghouse	2010-10-13 15:24:41.596-05
-14551	27	4	Transferred to clearinghouse	2010-10-13 15:24:43.517-05
+14572	28	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14578	31	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14552	28	1	Queued	2010-10-13 18:48:30.74-05
-14606	36	4	Transferred to clearinghouse	2010-10-14 17:02:02.871-05
-14608	37	2000	Started prepare content	2010-10-14 17:06:27.736482-05
+14596	34	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14555	29	1	Queued	2010-10-13 18:59:08.01-05
 14556	30	1	Queued	2010-10-13 18:59:08.093-05
-14610	37	4	Transferred to clearinghouse	2010-10-14 17:20:57.236-05
-14612	38	2000	Started prepare content	2010-10-14 17:23:48.625162-05
-14614	38	2	Ready to transfer	2010-10-14 17:39:40.335363-05
-14616	38	2	Ready to transfer to clearinghouse	2010-10-15 11:56:29.312942-05
-14564	29	2000	Started prepare content	2010-10-13 20:00:41.267297-05
-14565	29	2	Ready to transfer to clearinghouse.	2010-10-13 20:00:57.426191-05
-14566	30	2000	Started prepare content	2010-10-13 20:00:57.654246-05
-14567	28	2000	Started prepare content	2010-10-13 20:01:11.116043-05
-14568	30	2	Ready to transfer to clearinghouse.	2010-10-13 20:01:54.075033-05
-14569	28	2	Ready to transfer to clearinghouse.	2010-10-13 20:02:08.531531-05
-14570	29	3	Document prepared for transfer to clearinghouse	2010-10-13 20:05:51.233-05
-14571	30	3	Document prepared for transfer to clearinghouse	2010-10-13 20:13:33.671-05
-14572	28	3	Document prepared for transfer to clearinghouse	2010-10-13 20:21:18.327-05
+14630	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14642	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14654	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14660	41	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14573	31	1	Queued	2010-10-14 10:48:12.408-05
-14574	31	2000	Started prepare content	2010-10-14 10:48:13.520196-05
-14575	31	2	Ready to transfer to clearinghouse.	2010-10-14 10:48:18.076177-05
-14576	31	2	Ready to transfer to clearinghouse	2010-10-14 11:53:31.856102-05
-14577	31	2	Ready to transfer to clearinghouse	2010-10-14 12:52:33.213807-05
-14578	31	3	Document prepared for transfer to clearinghouse	2010-10-14 13:05:42.857-05
+14662	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14579	32	1	Queued	2010-10-14 13:11:30.651-05
-14580	32	2000	Started prepare content	2010-10-14 13:11:31.324808-05
-14581	32	2	Ready to transfer to clearinghouse.	2010-10-14 13:11:35.870103-05
-14582	32	2	Ready to transfer to clearinghouse	2010-10-14 13:18:56.175095-05
-14618	38	2	Ready to transfer to clearinghouse	2010-10-15 12:17:33.440164-05
+14664	40	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14666	39	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14733	51	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14584	33	1	Queued	2010-10-14 13:22:31.756-05
-14585	33	2000	Started prepare content	2010-10-14 13:22:32.172824-05
-14586	33	2	Ready to transfer to clearinghouse.	2010-10-14 13:22:36.461022-05
-14587	32	4	Transferred to clearinghouse	2010-10-14 13:23:40.689-05
-14583	32	4	Transferred to clearinghouse	2010-10-14 13:24:38.050366-05
-14588	33	2	Ready to transfer to	2010-10-14 13:40:48.598329-05
-14589	33	2	Ready to transfer to clearinghouse	2010-10-14 14:15:34.097813-05
-14620	38	4	Transferred to clearinghouse	2010-10-15 12:18:03.586-05
-14622	39	2000	Started prepare content	2010-10-15 16:34:16.338819-05
+14529	25	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14530	25	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14531	25	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14532	25	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14533	25	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14591	34	1	Queued	2010-10-14 14:54:05.242-05
-14592	34	2000	Started prepare content	2010-10-14 14:54:06.293125-05
-14593	34	2	Ready to transfer to clearinghouse.	2010-10-14 14:54:10.11842-05
-14594	34	2	Ready to transfer to clearinghouse	2010-10-14 15:15:34.80162-05
-14595	34	2	Ready to transfer to clearinghouse	2010-10-14 15:22:40.079113-05
-14596	34	3	Document prepared for transfer to clearinghouse	2010-10-14 15:27:21.642-05
+14534	24	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14535	24	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14536	24	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14537	24	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14597	35	1	Queued	2010-10-14 15:43:03.127-05
-14598	35	2000	Started prepare content	2010-10-14 15:43:03.883107-05
-14599	35	2	Ready to transfer to clearinghouse.	2010-10-14 15:43:07.911535-05
-14600	35	2	Ready to transfer to clearinghouse	2010-10-14 16:05:14.395063-05
+14538	22	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14541	21	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14542	23	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14624	40	1	Queued	2010-10-15 16:42:01.917-05
-14626	40	2	Ready to transfer to clearinghouse.	2010-10-15 16:43:09.613011-05
-14628	39	2	Ready to transfer to clearinghouse	2010-10-15 17:19:26.528742-05
-14630	40	3	Preparing content for transfer to clearinghouse	2010-10-15 17:21:13.142-05
-14632	39	2	Ready to transfer to clearinghouse	2010-10-15 18:33:17.458099-05
-14634	39	2	Ready to transfer to clearinghouse	2010-10-15 18:39:15.595093-05
-14636	40	2	Ready to transfer to clearinghouse	2010-10-15 18:50:20.153264-05
-14638	39	2	Ready to transfer to clearinghouse	2010-10-15 18:57:37.244243-05
-14640	40	2	Ready to transfer to clearinghouse	2010-10-15 19:53:15.082471-05
-14642	39	3	Preparing content for transfer to clearinghouse	2010-10-15 19:54:22.129-05
-14644	40	2	Ready to transfer to clearinghouse	2010-10-15 20:09:08.544704-05
-14646	39	2	Ready to transfer to clearinghouse	2010-10-16 22:27:35.215488-05
-14650	39	2	Ready to transfer to clearinghouse	2010-10-17 17:39:03.656032-05
-14652	39	2	Ready to transfer to clearinghouse	2010-10-18 14:36:24.982087-05
-14654	39	3	Preparing content for transfer to clearinghouse	2010-10-18 14:41:49.039-05
+14549	26	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14550	27	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14551	27	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14606	36	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14610	37	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14587	32	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14583	32	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14620	38	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14734	51	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
 14656	41	1	Queued	2010-10-19 13:40:25.867-05
-14658	41	2	Ready to transfer to clearinghouse.	2010-10-19 13:40:34.179105-05
-14660	41	3	Preparing content for transfer to clearinghouse	2010-10-19 13:55:29.797-05
-14662	39	3	Preparing content for transfer to clearinghouse	2010-10-19 14:07:51.002-05
-14648	40	2	Ready to transfer to clearinghouse	2010-10-19 14:11:35.660259-05
-14664	40	3	Preparing content for transfer to clearinghouse	2010-10-19 14:11:43.144-05
-14666	39	3	Preparing content for transfer to clearinghouse	2010-10-19 14:14:26.832-05
-14728	50	3	Document prepared for transfer to clearinghouse	2010-10-20 23:15:34.135-05
-14729	50	4	Transferred to clearinghouse	2010-10-20 23:30:40.909754-05
 14730	51	1	Queued	2010-10-20 23:34:03.898-05
-14731	51	2000	Started prepare content	2010-10-20 23:34:04.224007-05
-14732	51	2	Ready to transfer to clearinghouse.	2010-10-20 23:34:05.821366-05
-14733	51	3	Document prepared for transfer to clearinghouse	2010-10-20 23:35:40.047-05
-14734	51	4	Transferred to clearinghouse	2010-10-20 23:46:54.897819-05
+14527	24	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14528	25	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14540	23	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14547	26	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14548	27	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14614	38	30	Ready to transfer	2010-10-22 12:03:25.828982-05
+14616	38	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14565	29	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14568	30	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14569	28	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14575	31	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14576	31	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14577	31	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
 14735	52	1	Queued	2010-10-20 23:50:04.357-05
-14736	52	2000	Started prepare content	2010-10-20 23:50:04.829964-05
-14737	52	2	Ready to transfer to clearinghouse.	2010-10-20 23:50:06.16623-05
-14738	52	3	Document prepared for transfer to clearinghouse	2010-10-20 23:51:55.917-05
-14739	52	4	Transferred to clearinghouse	2010-10-21 16:38:02.397779-05
 14740	53	1	Queued	2010-10-21 16:42:26.324-05
-14741	53	2000	Started prepare content	2010-10-21 16:42:27.038876-05
-14742	53	2	Ready to transfer to clearinghouse.	2010-10-21 16:42:28.630771-05
-14743	53	4	Transferred to clearinghouse	2010-10-21 16:51:50.909827-05
 14744	54	1	Queued	2010-10-21 16:54:25.366-05
-14745	54	2000	Started prepare content	2010-10-21 16:54:26.000016-05
-14746	54	2	Ready to transfer to clearinghouse.	2010-10-21 16:54:27.308552-05
-14747	54	3	Preparing content for transfer to clearinghouse	2010-10-21 16:54:44.34-05
-14748	54	4	Transferred to clearinghouse	2010-10-21 16:54:44.34-05
 14749	55	1	Queued	2010-10-21 21:09:36.553-05
-14750	55	2000	Started prepare content	2010-10-21 21:09:37.592058-05
-14751	55	2	Ready to transfer to clearinghouse.	2010-10-21 21:09:39.146276-05
-14752	55	3	Preparing content for transfer to clearinghouse	2010-10-21 21:44:06.499-05
-14753	55	4	Transferred to clearinghouse	2010-10-21 21:54:17.869842-05
 14754	56	1	Queued	2010-10-21 21:56:34.489-05
-14755	56	2000	Started prepare content	2010-10-21 21:56:35.743642-05
-14756	56	2	Ready to transfer to clearinghouse.	2010-10-21 21:56:36.532456-05
-14757	56	3	Preparing content for transfer to clearinghouse	2010-10-21 21:57:23.924-05
-14758	56	4	Transferred to clearinghouse	2010-10-21 22:14:14.873823-05
 14759	57	1	Queued	2010-10-21 22:18:06.949-05
-14760	57	2000	Started prepare content	2010-10-21 22:18:10.659028-05
-14761	57	2	Ready to transfer to clearinghouse.	2010-10-21 22:18:11.828282-05
-14762	57	3	Preparing content for transfer to clearinghouse	2010-10-21 22:19:06.383-05
-14763	57	4	Transferred to clearinghouse	2010-10-21 23:01:41.201812-05
+14738	52	36	Document prepared for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
 14764	58	1	Queued	2010-10-21 23:05:03.935-05
-14765	58	2000	Started prepare content	2010-10-21 23:05:04.292768-05
-14766	58	2	Ready to transfer to clearinghouse.	2010-10-21 23:05:05.267984-05
-14767	58	3	Preparing content for transfer to clearinghouse	2010-10-21 23:06:04.064-05
+14747	54	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14427	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14428	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14429	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14432	17	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14435	18	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14436	18	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14437	18	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14440	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14441	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14442	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14443	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14444	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14445	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14446	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14447	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14448	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14449	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14450	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14451	16	30	Ready to transfer to clearinghous	2010-10-22 12:03:25.828982-05
+14452	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14453	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14454	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14455	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14456	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14457	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14458	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14459	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14460	16	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14438	18	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14462	18	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14463	18	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14737	52	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14742	53	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14746	54	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14751	55	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14756	56	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14752	55	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14757	56	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14762	57	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14767	58	36	Preparing content for transfer to clearinghouse	2010-10-22 12:05:36.14765-05
+14739	52	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14743	53	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14748	54	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14753	55	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14758	56	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14763	57	37	Transferred to clearinghouse	2010-10-22 12:05:44.499269-05
+14420	16	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14510	20	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14431	17	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14434	18	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14515	21	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14518	22	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14625	40	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14657	41	23	Started prepare content	2010-10-22 12:53:32.492078-05
+14439	17	30	Transferred to clearinghouse	2010-10-22 12:03:25.828982-05
+14465	17	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14467	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14511	20	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14468	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14469	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14471	19	30	Ready to tranfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14472	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14473	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14474	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14475	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14476	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14477	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14478	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14479	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14480	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14481	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14482	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14483	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14484	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14485	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14486	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14487	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14488	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14499	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14489	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14490	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14491	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14492	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14498	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14500	19	30	Ready to transfer to clearninghouse	2010-10-22 12:03:25.828982-05
+14501	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14502	19	30	Transferred to clearinghouse	2010-10-22 12:03:25.828982-05
+14503	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14504	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14505	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14506	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14507	19	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14516	21	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14519	22	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14637	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14641	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14643	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14653	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14690	42	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14655	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14663	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14590	33	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14665	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14667	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14671	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14672	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14676	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14677	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14678	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14679	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14681	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14683	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14694	43	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14699	44	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14703	45	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14708	46	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14714	47	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14715	48	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14722	49	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14581	32	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14582	32	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14618	38	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14586	33	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14588	33	30	Ready to transfer to	2010-10-22 12:03:25.828982-05
+14589	33	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14593	34	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14594	34	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14595	34	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14599	35	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14600	35	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14626	40	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14628	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14632	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14634	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14636	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14638	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14640	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14644	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14646	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14650	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14652	39	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14658	41	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14648	40	30	Ready to transfer to clearinghouse	2010-10-22 12:03:25.828982-05
+14732	51	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14761	57	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14766	58	30	Ready to transfer to clearinghouse.	2010-10-22 12:03:25.828982-05
+14773	50	23		2010-12-14 13:28:07.69159-06
+14774	50	-21	Unable to retrive study from any remote device.	2010-12-14 13:28:09.088928-06
 \.
 
 
@@ -4902,6 +5054,30 @@ ALTER TABLE ONLY patient_merge_events
 
 ALTER TABLE ONLY exams
     ADD CONSTRAINT pk_exam_id PRIMARY KEY (exam_id);
+
+
+--
+-- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_accession_numbers
+    ADD CONSTRAINT pk_hipaa_audit_accession_number_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_mrns
+    ADD CONSTRAINT pk_hipaa_audit_mrn_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_views
+    ADD CONSTRAINT pk_hipaa_audit_view_id PRIMARY KEY (id);
 
 
 --
@@ -4958,6 +5134,14 @@ ALTER TABLE ONLY reports
 
 ALTER TABLE ONLY roles
     ADD CONSTRAINT pk_role_id PRIMARY KEY (role_id);
+
+
+--
+-- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY status_codes
+    ADD CONSTRAINT pk_status_code PRIMARY KEY (status_code);
 
 
 --

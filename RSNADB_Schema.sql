@@ -39,6 +39,7 @@ ALTER TABLE ONLY public.exams DROP CONSTRAINT uq_exam;
 ALTER TABLE ONLY public.users DROP CONSTRAINT pk_user_id;
 ALTER TABLE ONLY public.transactions DROP CONSTRAINT pk_transaction_id;
 ALTER TABLE ONLY public.studies DROP CONSTRAINT pk_study_id;
+ALTER TABLE ONLY public.status_codes DROP CONSTRAINT pk_status_code;
 ALTER TABLE ONLY public.roles DROP CONSTRAINT pk_role_id;
 ALTER TABLE ONLY public.reports DROP CONSTRAINT pk_report_id;
 ALTER TABLE ONLY public.patients DROP CONSTRAINT pk_patient_id;
@@ -46,6 +47,9 @@ ALTER TABLE ONLY public.patient_rsna_ids DROP CONSTRAINT pk_map_id;
 ALTER TABLE ONLY public.configurations DROP CONSTRAINT pk_key;
 ALTER TABLE ONLY public.job_sets DROP CONSTRAINT pk_job_set_id;
 ALTER TABLE ONLY public.jobs DROP CONSTRAINT pk_job_id;
+ALTER TABLE ONLY public.hipaa_audit_views DROP CONSTRAINT pk_hipaa_audit_view_id;
+ALTER TABLE ONLY public.hipaa_audit_mrns DROP CONSTRAINT pk_hipaa_audit_mrn_id;
+ALTER TABLE ONLY public.hipaa_audit_accession_numbers DROP CONSTRAINT pk_hipaa_audit_accession_number_id;
 ALTER TABLE ONLY public.exams DROP CONSTRAINT pk_exam_id;
 ALTER TABLE ONLY public.patient_merge_events DROP CONSTRAINT pk_event_id;
 ALTER TABLE ONLY public.devices DROP CONSTRAINT pk_device_id;
@@ -71,6 +75,7 @@ DROP SEQUENCE public.transactions_transaction_id_seq;
 DROP TABLE public.transactions;
 DROP SEQUENCE public.studies_study_id_seq;
 DROP TABLE public.studies;
+DROP TABLE public.status_codes;
 DROP TABLE public.roles;
 DROP SEQUENCE public.reports_report_id_seq;
 DROP TABLE public.reports;
@@ -99,10 +104,34 @@ DROP FUNCTION public.usp_update_modified_date();
 DROP PROCEDURAL LANGUAGE plpgsql;
 DROP SCHEMA public;
 --
--- Name: rsnadb; Type: COMMENT; Schema: -; Owner: edge
+-- Name: rsnadb2; Type: COMMENT; Schema: -; Owner: edge
 --
 
-COMMENT ON DATABASE rsnadb IS 'RSNA NIBIB Edge Device Database';
+COMMENT ON DATABASE rsnadb2 IS 'RSNA2 Edge Device Database
+Authors: Wendy Zhu (Univ of Chicago) and Steve G Langer (Mayo Clinic)
+
+Copyright (c) <2010>, <Radiological Society of North America>
+  All rights reserved.
+  Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+  Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+  Neither the name of the <RSNA> nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+  THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+  USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+  USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+  OF SUCH DAMAGE.';
 
 
 --
@@ -170,11 +199,13 @@ ALTER TABLE public.configurations OWNER TO edge;
 -- Name: TABLE configurations; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE configurations IS 'This table is used to store applications specific config data;
+COMMENT ON TABLE configurations IS 'This table is used to store applications specific config data as key/value pairs and takes the place of java properties files (rather then having it all aly about in plain text files);
+
 a) paths to key things (ie dicom studies)
 b) site prefix for generating RSNA ID''s
 c) site delay for applying to report finalize before available to send to CH
-d) etc';
+d) Clearing House connection data
+e) etc';
 
 
 --
@@ -196,10 +227,11 @@ ALTER TABLE public.devices OWNER TO edge;
 -- Name: TABLE devices; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE devices IS 'Used to store
+COMMENT ON TABLE devices IS 'Used to store DICOM connection info for mage sources, and possibly others
+
 a) the DICOM triplet (for remote DICOM study sources)
-b) the HL7 feed infor (reports, orders)
-c) the connect info for the Clearing House
+b) ?
+
 ';
 
 
@@ -275,7 +307,7 @@ CREATE TABLE hipaa_audit_accession_numbers (
     id integer NOT NULL,
     view_id integer,
     accession_number character varying(100),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -285,7 +317,7 @@ ALTER TABLE public.hipaa_audit_accession_numbers OWNER TO edge;
 -- Name: TABLE hipaa_audit_accession_numbers; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking for edge device auditing
+COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking for edge device auditing. This table and  "audit_mrns" report up to table HIPAA_views
 ';
 
 
@@ -318,7 +350,7 @@ CREATE TABLE hipaa_audit_mrns (
     id integer NOT NULL,
     view_id integer,
     mrn character varying(100),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -328,7 +360,8 @@ ALTER TABLE public.hipaa_audit_mrns OWNER TO edge;
 -- Name: TABLE hipaa_audit_mrns; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device auditing';
+COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device auditing. This table and  "audit_acessions" report up to table HIPAA_views
+';
 
 
 --
@@ -361,7 +394,7 @@ CREATE TABLE hipaa_audit_views (
     requesting_ip character varying(15),
     requesting_username character varying(100),
     requesting_uri text,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -371,7 +404,7 @@ ALTER TABLE public.hipaa_audit_views OWNER TO edge;
 -- Name: TABLE hipaa_audit_views; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge device auditing. This is the top level table that tracks who asked for what from where';
+COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge device auditing. This is the top level table that tracks who asked for what from where. The HIPAA tables "audfit_accession" and "audit_mrns" report up to this table';
 
 
 --
@@ -404,9 +437,10 @@ CREATE TABLE job_sets (
     patient_id integer NOT NULL,
     user_id integer NOT NULL,
     security_pin character varying(10),
-    email_address character varying,
+    email_address character varying(255),
     modified_date timestamp with time zone DEFAULT now(),
-    delay_in_hrs integer DEFAULT 72
+    delay_in_hrs integer DEFAULT 72,
+    single_use_patient_id character varying(64)
 );
 
 
@@ -418,6 +452,20 @@ ALTER TABLE public.job_sets OWNER TO edge;
 
 COMMENT ON TABLE job_sets IS 'This is one of a pair of tables that bind a patient to a edge device job, consisting of one or more exam accessions descrbing DICOM exams to send to the CH. The other table is JOBS
 ';
+
+
+--
+-- Name: COLUMN job_sets.security_pin; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN job_sets.security_pin IS 'the PIN the patient used for the submission of this job set';
+
+
+--
+-- Name: COLUMN job_sets.email_address; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN job_sets.email_address IS 'the email address the patient claimed at the time this job was submitted to the Clearing House';
 
 
 --
@@ -543,7 +591,9 @@ CREATE TABLE patient_rsna_ids (
     modified_date timestamp with time zone DEFAULT now(),
     patient_alias_lastname character varying(100),
     patient_alias_firstname character varying(100),
-    registered boolean DEFAULT false NOT NULL
+    registered boolean DEFAULT false NOT NULL,
+    email_address character varying(255),
+    security_pin character varying(10)
 );
 
 
@@ -555,6 +605,34 @@ ALTER TABLE public.patient_rsna_ids OWNER TO edge;
 
 COMMENT ON TABLE patient_rsna_ids IS 'Map a patients local medical center ID (ie MRN) to the MPI like RSNAID
 ';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.rsna_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.rsna_id IS 'the ID the patient shall be known by on the  Clearing House';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.patient_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.patient_id IS 'the patient ID used at the sending medical center';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.email_address; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.email_address IS 'the patient''s current email address. This is copied into the Job-set table, since there is no guarantee that the same email address will be used over all Job-sets';
+
+
+--
+-- Name: COLUMN patient_rsna_ids.security_pin; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patient_rsna_ids.security_pin IS 'the PIN currently used by the patient. Since this cannot be assumed to be constant over time, the one claimed at the moment of Job-set creation is copied ot that table';
 
 
 --
@@ -603,6 +681,20 @@ ALTER TABLE public.patients OWNER TO edge;
 --
 
 COMMENT ON TABLE patients IS 'a list of all patient demog sent via the HL7 MIRTH channel';
+
+
+--
+-- Name: COLUMN patients.patient_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patients.patient_id IS 'just teh dbase created primary key';
+
+
+--
+-- Name: COLUMN patients.mrn; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patients.mrn IS 'the actual medical recrod number from the medical center';
 
 
 --
@@ -691,8 +783,32 @@ ALTER TABLE public.roles OWNER TO edge;
 -- Name: TABLE roles; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE roles IS 'Combined with table Users, this table defined a user role and privelages
+COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user''s privelages
 ';
+
+
+--
+-- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE status_codes (
+    status_code integer NOT NULL,
+    description character varying(255),
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.status_codes OWNER TO edge;
+
+--
+-- Name: TABLE status_codes; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE status_codes IS 'Maps a job status number to a human readable format. 
+
+Values in the 20s are owned by the COntent-prep app
+
+Values in the 30s are owned by the Content-send app';
 
 
 --
@@ -746,8 +862,8 @@ ALTER SEQUENCE studies_study_id_seq OWNED BY studies.study_id;
 CREATE TABLE transactions (
     transaction_id integer NOT NULL,
     job_id integer NOT NULL,
-    status integer NOT NULL,
-    status_message character varying,
+    status_code integer NOT NULL,
+    comments character varying,
     modified_date timestamp with time zone DEFAULT now()
 );
 
@@ -762,10 +878,10 @@ COMMENT ON TABLE transactions IS 'status logging/auditing for jobs defined in ta
 
 
 --
--- Name: COLUMN transactions.status; Type: COMMENT; Schema: public; Owner: edge
+-- Name: COLUMN transactions.status_code; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON COLUMN transactions.status IS 'WHen a job is created by the GUI Token app, the row is created with value 1
+COMMENT ON COLUMN transactions.status_code IS 'WHen a job is created by the GUI Token app, the row is created with value 1
 
 Prepare Content looks for value of one and promites status to 2 on exit
 
@@ -821,7 +937,7 @@ ALTER TABLE public.users OWNER TO edge;
 -- Name: TABLE users; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE users IS 'Combined with table Rows, this table defeins who can do what on the Edge appliacne Web GUI';
+COMMENT ON TABLE users IS 'Combined with table Roles, this table defines who can do what on the Edge appliacne Web GUI';
 
 
 --
@@ -860,7 +976,7 @@ ALTER TABLE public.v_exam_status OWNER TO edge;
 --
 
 CREATE VIEW v_job_status AS
-    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status, t1.status_message, t1.modified_date FROM transactions t1 WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
 
 
 ALTER TABLE public.v_job_status OWNER TO edge;
@@ -988,6 +1104,30 @@ ALTER TABLE ONLY exams
 
 
 --
+-- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_accession_numbers
+    ADD CONSTRAINT pk_hipaa_audit_accession_number_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_mrns
+    ADD CONSTRAINT pk_hipaa_audit_mrn_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_views
+    ADD CONSTRAINT pk_hipaa_audit_view_id PRIMARY KEY (id);
+
+
+--
 -- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -1041,6 +1181,14 @@ ALTER TABLE ONLY reports
 
 ALTER TABLE ONLY roles
     ADD CONSTRAINT pk_role_id PRIMARY KEY (role_id);
+
+
+--
+-- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY status_codes
+    ADD CONSTRAINT pk_status_code PRIMARY KEY (status_code);
 
 
 --
