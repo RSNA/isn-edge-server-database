@@ -4,6 +4,7 @@
  */
 
 package org.rsna.isn ;
+import org.rsna.isn.Get_Path ;
 import java.io.* ;
 import java.util.* ;
 
@@ -40,7 +41,7 @@ import java.util.* ;
  * OF SUCH DAMAGE.
  */
 
-public class log_cat {
+public class Log_Cat {
 
     /**
      * @param args the command line arguments
@@ -50,9 +51,10 @@ public class log_cat {
      */
     public static void main(String[] args) {
 
-        String info = "/rsna/logs/info";
-        String warn = "/rsna/logs/warn";
-        String debug = "/rsna/logs/debug";
+        Get_Path path = new Get_Path();
+        String info = path.path_logs + "info";
+        String warn = path.path_logs + "warn";
+        String debug = path.path_logs + "debug";
         String[] files = {info, warn, debug};
         del_files (files);
 
@@ -60,11 +62,11 @@ public class log_cat {
         //String[] result = list_cat (files, "booger");
         //System.out.println ("result=" + result[3]);
         
-        File dir = new File("/rsna/logs");
+        File dir = new File(path.path_logs);
         String[] logs = dir.list();       
         for (String i : logs) {
             if (i.contains(".log") & !i.contains(".log.")) {
-                i = new String ("/rsna/logs/" + i);
+                i = new String (path.path_logs + i);
                 System.out.println("string=" + i);
                 File f = new File(i);
                 try {
