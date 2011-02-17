@@ -12,8 +12,8 @@ SET escape_string_warning = off;
 SET search_path = public, pg_catalog;
 
 ALTER TABLE ONLY public.job_sets DROP CONSTRAINT fk_user_id;
+ALTER TABLE ONLY public.transactions DROP CONSTRAINT fk_status_code;
 ALTER TABLE ONLY public.jobs DROP CONSTRAINT fk_report_id;
-ALTER TABLE ONLY public.patient_rsna_ids DROP CONSTRAINT fk_patient_id;
 ALTER TABLE ONLY public.exams DROP CONSTRAINT fk_patient_id;
 ALTER TABLE ONLY public.job_sets DROP CONSTRAINT fk_patient_id;
 ALTER TABLE ONLY public.jobs DROP CONSTRAINT fk_job_set_id;
@@ -27,25 +27,28 @@ DROP TRIGGER tr_studies_modified_date ON public.studies;
 DROP TRIGGER tr_roles_modified_date ON public.roles;
 DROP TRIGGER tr_reports_modified_date ON public.reports;
 DROP TRIGGER tr_patients_modified_date ON public.patients;
-DROP TRIGGER tr_patient_rsna_ids_modified_date ON public.patient_rsna_ids;
 DROP TRIGGER tr_patient_merge_events_modified_date ON public.patient_merge_events;
 DROP TRIGGER tr_jobs_modified_date ON public.jobs;
 DROP TRIGGER tr_job_sets_modified_date ON public.job_sets;
 DROP TRIGGER tr_exams_modified_date ON public.exams;
 DROP TRIGGER tr_devices_modified_date ON public.devices;
 DROP TRIGGER tr_configurations_modified_date ON public.configurations;
+ALTER TABLE ONLY public.job_sets DROP CONSTRAINT uq_single_use_patient_id;
 ALTER TABLE ONLY public.users DROP CONSTRAINT uq_login;
 ALTER TABLE ONLY public.exams DROP CONSTRAINT uq_exam;
 ALTER TABLE ONLY public.users DROP CONSTRAINT pk_user_id;
 ALTER TABLE ONLY public.transactions DROP CONSTRAINT pk_transaction_id;
 ALTER TABLE ONLY public.studies DROP CONSTRAINT pk_study_id;
+ALTER TABLE ONLY public.status_codes DROP CONSTRAINT pk_status_code;
 ALTER TABLE ONLY public.roles DROP CONSTRAINT pk_role_id;
 ALTER TABLE ONLY public.reports DROP CONSTRAINT pk_report_id;
 ALTER TABLE ONLY public.patients DROP CONSTRAINT pk_patient_id;
-ALTER TABLE ONLY public.patient_rsna_ids DROP CONSTRAINT pk_map_id;
 ALTER TABLE ONLY public.configurations DROP CONSTRAINT pk_key;
 ALTER TABLE ONLY public.job_sets DROP CONSTRAINT pk_job_set_id;
 ALTER TABLE ONLY public.jobs DROP CONSTRAINT pk_job_id;
+ALTER TABLE ONLY public.hipaa_audit_views DROP CONSTRAINT pk_hipaa_audit_view_id;
+ALTER TABLE ONLY public.hipaa_audit_mrns DROP CONSTRAINT pk_hipaa_audit_mrn_id;
+ALTER TABLE ONLY public.hipaa_audit_accession_numbers DROP CONSTRAINT pk_hipaa_audit_accession_number_id;
 ALTER TABLE ONLY public.exams DROP CONSTRAINT pk_exam_id;
 ALTER TABLE ONLY public.patient_merge_events DROP CONSTRAINT pk_event_id;
 ALTER TABLE ONLY public.devices DROP CONSTRAINT pk_device_id;
@@ -54,7 +57,6 @@ ALTER TABLE public.transactions ALTER COLUMN transaction_id DROP DEFAULT;
 ALTER TABLE public.studies ALTER COLUMN study_id DROP DEFAULT;
 ALTER TABLE public.reports ALTER COLUMN report_id DROP DEFAULT;
 ALTER TABLE public.patients ALTER COLUMN patient_id DROP DEFAULT;
-ALTER TABLE public.patient_rsna_ids ALTER COLUMN map_id DROP DEFAULT;
 ALTER TABLE public.patient_merge_events ALTER COLUMN event_id DROP DEFAULT;
 ALTER TABLE public.jobs ALTER COLUMN job_id DROP DEFAULT;
 ALTER TABLE public.job_sets ALTER COLUMN job_set_id DROP DEFAULT;
@@ -71,13 +73,12 @@ DROP SEQUENCE public.transactions_transaction_id_seq;
 DROP TABLE public.transactions;
 DROP SEQUENCE public.studies_study_id_seq;
 DROP TABLE public.studies;
+DROP TABLE public.status_codes;
 DROP TABLE public.roles;
 DROP SEQUENCE public.reports_report_id_seq;
 DROP TABLE public.reports;
 DROP SEQUENCE public.patients_patient_id_seq;
 DROP TABLE public.patients;
-DROP SEQUENCE public.patient_rsna_ids_map_id_seq;
-DROP TABLE public.patient_rsna_ids;
 DROP SEQUENCE public.patient_merge_events_event_id_seq;
 DROP TABLE public.patient_merge_events;
 DROP SEQUENCE public.jobs_job_id_seq;
@@ -102,7 +103,31 @@ DROP SCHEMA public;
 -- Name: rsnadb; Type: COMMENT; Schema: -; Owner: edge
 --
 
-COMMENT ON DATABASE rsnadb IS 'RSNA NIBIB Edge Device Database';
+COMMENT ON DATABASE rsnadb IS 'RSNA2 Edge Device Database
+Authors: Wendy Zhu (Univ of Chicago) and Steve G Langer (Mayo Clinic)
+
+Copyright (c) <2010>, <Radiological Society of North America>
+  All rights reserved.
+  Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+  Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+  Neither the name of the <RSNA> nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ 
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+  PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+  THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY
+  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+  USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+  NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+  USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+  OF SUCH DAMAGE.';
 
 
 --
@@ -170,11 +195,13 @@ ALTER TABLE public.configurations OWNER TO edge;
 -- Name: TABLE configurations; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE configurations IS 'This table is used to store applications specific config data;
+COMMENT ON TABLE configurations IS 'This table is used to store applications specific config data as key/value pairs and takes the place of java properties files (rather then having it all aly about in plain text files);
+
 a) paths to key things (ie dicom studies)
 b) site prefix for generating RSNA ID''s
 c) site delay for applying to report finalize before available to send to CH
-d) etc';
+d) Clearing House connection data
+e) etc';
 
 
 --
@@ -196,10 +223,11 @@ ALTER TABLE public.devices OWNER TO edge;
 -- Name: TABLE devices; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE devices IS 'Used to store
+COMMENT ON TABLE devices IS 'Used to store DICOM connection info for mage sources, and possibly others
+
 a) the DICOM triplet (for remote DICOM study sources)
-b) the HL7 feed infor (reports, orders)
-c) the connect info for the Clearing House
+b) ?
+
 ';
 
 
@@ -278,7 +306,7 @@ ALTER SEQUENCE exams_exam_id_seq OWNED BY exams.exam_id;
 -- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('exams_exam_id_seq', 82, true);
+SELECT pg_catalog.setval('exams_exam_id_seq', 91, true);
 
 
 --
@@ -289,7 +317,7 @@ CREATE TABLE hipaa_audit_accession_numbers (
     id integer NOT NULL,
     view_id integer,
     accession_number character varying(100),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -299,7 +327,7 @@ ALTER TABLE public.hipaa_audit_accession_numbers OWNER TO edge;
 -- Name: TABLE hipaa_audit_accession_numbers; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking for edge device auditing
+COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking for edge device auditing. This table and  "audit_mrns" report up to table HIPAA_views
 ';
 
 
@@ -328,7 +356,7 @@ ALTER SEQUENCE hipaa_audit_accession_numbers_id_seq OWNED BY hipaa_audit_accessi
 -- Name: hipaa_audit_accession_numbers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 197, true);
+SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 331, true);
 
 
 --
@@ -339,7 +367,7 @@ CREATE TABLE hipaa_audit_mrns (
     id integer NOT NULL,
     view_id integer,
     mrn character varying(100),
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -349,7 +377,8 @@ ALTER TABLE public.hipaa_audit_mrns OWNER TO edge;
 -- Name: TABLE hipaa_audit_mrns; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device auditing';
+COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device auditing. This table and  "audit_acessions" report up to table HIPAA_views
+';
 
 
 --
@@ -377,7 +406,7 @@ ALTER SEQUENCE hipaa_audit_mrns_id_seq OWNED BY hipaa_audit_mrns.id;
 -- Name: hipaa_audit_mrns_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 1718, true);
+SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2073, true);
 
 
 --
@@ -389,7 +418,7 @@ CREATE TABLE hipaa_audit_views (
     requesting_ip character varying(15),
     requesting_username character varying(100),
     requesting_uri text,
-    modified_date timestamp with time zone
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -399,7 +428,7 @@ ALTER TABLE public.hipaa_audit_views OWNER TO edge;
 -- Name: TABLE hipaa_audit_views; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge device auditing. This is the top level table that tracks who asked for what from where';
+COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge device auditing. This is the top level table that tracks who asked for what from where. The HIPAA tables "audfit_accession" and "audit_mrns" report up to this table';
 
 
 --
@@ -427,7 +456,7 @@ ALTER SEQUENCE hipaa_audit_views_id_seq OWNED BY hipaa_audit_views.id;
 -- Name: hipaa_audit_views_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 842, true);
+SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1440, true);
 
 
 --
@@ -438,10 +467,10 @@ CREATE TABLE job_sets (
     job_set_id integer NOT NULL,
     patient_id integer NOT NULL,
     user_id integer NOT NULL,
-    security_pin character varying(10),
-    email_address character varying,
+    email_address character varying(255),
     modified_date timestamp with time zone DEFAULT now(),
-    delay_in_hrs integer DEFAULT 72
+    delay_in_hrs integer DEFAULT 0,
+    single_use_patient_id character varying(64) NOT NULL
 );
 
 
@@ -453,6 +482,13 @@ ALTER TABLE public.job_sets OWNER TO edge;
 
 COMMENT ON TABLE job_sets IS 'This is one of a pair of tables that bind a patient to a edge device job, consisting of one or more exam accessions descrbing DICOM exams to send to the CH. The other table is JOBS
 ';
+
+
+--
+-- Name: COLUMN job_sets.email_address; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN job_sets.email_address IS 'the email address the patient claimed at the time this job was submitted to the Clearing House';
 
 
 --
@@ -480,7 +516,7 @@ ALTER SEQUENCE job_sets_job_set_id_seq OWNED BY job_sets.job_set_id;
 -- Name: job_sets_job_set_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('job_sets_job_set_id_seq', 57, true);
+SELECT pg_catalog.setval('job_sets_job_set_id_seq', 94, true);
 
 
 --
@@ -532,7 +568,7 @@ ALTER SEQUENCE jobs_job_id_seq OWNED BY jobs.job_id;
 -- Name: jobs_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('jobs_job_id_seq', 58, true);
+SELECT pg_catalog.setval('jobs_job_id_seq', 95, true);
 
 
 --
@@ -589,59 +625,6 @@ SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
 
 
 --
--- Name: patient_rsna_ids; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE TABLE patient_rsna_ids (
-    map_id integer NOT NULL,
-    rsna_id character varying(30) NOT NULL,
-    patient_id integer NOT NULL,
-    modified_date timestamp with time zone DEFAULT now(),
-    patient_alias_lastname character varying(100),
-    patient_alias_firstname character varying(100),
-    registered boolean DEFAULT false NOT NULL
-);
-
-
-ALTER TABLE public.patient_rsna_ids OWNER TO edge;
-
---
--- Name: TABLE patient_rsna_ids; Type: COMMENT; Schema: public; Owner: edge
---
-
-COMMENT ON TABLE patient_rsna_ids IS 'Map a patients local medical center ID (ie MRN) to the MPI like RSNAID
-';
-
-
---
--- Name: patient_rsna_ids_map_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
---
-
-CREATE SEQUENCE patient_rsna_ids_map_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MAXVALUE
-    NO MINVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.patient_rsna_ids_map_id_seq OWNER TO edge;
-
---
--- Name: patient_rsna_ids_map_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
---
-
-ALTER SEQUENCE patient_rsna_ids_map_id_seq OWNED BY patient_rsna_ids.map_id;
-
-
---
--- Name: patient_rsna_ids_map_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('patient_rsna_ids_map_id_seq', 49, true);
-
-
---
 -- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -655,7 +638,8 @@ CREATE TABLE patients (
     city character varying(50),
     state character varying(30),
     zip_code character varying(30),
-    modified_date timestamp with time zone DEFAULT now()
+    modified_date timestamp with time zone DEFAULT now(),
+    consent_timestamp timestamp with time zone
 );
 
 
@@ -666,6 +650,20 @@ ALTER TABLE public.patients OWNER TO edge;
 --
 
 COMMENT ON TABLE patients IS 'a list of all patient demog sent via the HL7 MIRTH channel';
+
+
+--
+-- Name: COLUMN patients.patient_id; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patients.patient_id IS 'just teh dbase created primary key';
+
+
+--
+-- Name: COLUMN patients.mrn; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON COLUMN patients.mrn IS 'the actual medical recrod number from the medical center';
 
 
 --
@@ -693,7 +691,7 @@ ALTER SEQUENCE patients_patient_id_seq OWNED BY patients.patient_id;
 -- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('patients_patient_id_seq', 78, true);
+SELECT pg_catalog.setval('patients_patient_id_seq', 87, true);
 
 
 --
@@ -748,7 +746,7 @@ ALTER SEQUENCE reports_report_id_seq OWNED BY reports.report_id;
 -- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('reports_report_id_seq', 148, true);
+SELECT pg_catalog.setval('reports_report_id_seq', 166, true);
 
 
 --
@@ -768,8 +766,32 @@ ALTER TABLE public.roles OWNER TO edge;
 -- Name: TABLE roles; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE roles IS 'Combined with table Users, this table defined a user role and privelages
+COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user''s privelages
 ';
+
+
+--
+-- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE status_codes (
+    status_code integer NOT NULL,
+    description character varying(255),
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.status_codes OWNER TO edge;
+
+--
+-- Name: TABLE status_codes; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE status_codes IS 'Maps a job status number to a human readable format. 
+
+Values in the 20s are owned by the COntent-prep app
+
+Values in the 30s are owned by the Content-send app';
 
 
 --
@@ -830,8 +852,8 @@ SELECT pg_catalog.setval('studies_study_id_seq', 236, true);
 CREATE TABLE transactions (
     transaction_id integer NOT NULL,
     job_id integer NOT NULL,
-    status integer NOT NULL,
-    status_message character varying,
+    status_code integer NOT NULL,
+    comments character varying,
     modified_date timestamp with time zone DEFAULT now()
 );
 
@@ -846,10 +868,10 @@ COMMENT ON TABLE transactions IS 'status logging/auditing for jobs defined in ta
 
 
 --
--- Name: COLUMN transactions.status; Type: COMMENT; Schema: public; Owner: edge
+-- Name: COLUMN transactions.status_code; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON COLUMN transactions.status IS 'WHen a job is created by the GUI Token app, the row is created with value 1
+COMMENT ON COLUMN transactions.status_code IS 'WHen a job is created by the GUI Token app, the row is created with value 1
 
 Prepare Content looks for value of one and promites status to 2 on exit
 
@@ -883,7 +905,7 @@ ALTER SEQUENCE transactions_transaction_id_seq OWNED BY transactions.transaction
 -- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('transactions_transaction_id_seq', 14767, true);
+SELECT pg_catalog.setval('transactions_transaction_id_seq', 15192, true);
 
 
 --
@@ -912,7 +934,7 @@ ALTER TABLE public.users OWNER TO edge;
 -- Name: TABLE users; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE users IS 'Combined with table Rows, this table defeins who can do what on the Edge appliacne Web GUI';
+COMMENT ON TABLE users IS 'Combined with table Roles, this table defines who can do what on the Edge appliacne Web GUI';
 
 
 --
@@ -958,7 +980,7 @@ ALTER TABLE public.v_exam_status OWNER TO edge;
 --
 
 CREATE VIEW v_job_status AS
-    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status, t1.status_message, t1.modified_date FROM transactions t1 WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp, js.single_use_patient_id, t.comments FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
 
 
 ALTER TABLE public.v_job_status OWNER TO edge;
@@ -1020,13 +1042,6 @@ ALTER TABLE patient_merge_events ALTER COLUMN event_id SET DEFAULT nextval('pati
 
 
 --
--- Name: map_id; Type: DEFAULT; Schema: public; Owner: edge
---
-
-ALTER TABLE patient_rsna_ids ALTER COLUMN map_id SET DEFAULT nextval('patient_rsna_ids_map_id_seq'::regclass);
-
-
---
 -- Name: patient_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
@@ -1066,6 +1081,16 @@ ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::
 --
 
 COPY configurations (key, value, modified_date) FROM stdin;
+dcm-dir-path	/rsna/dcm/	2010-11-02 09:27:06.248449-05
+tmp-dir-path	/rsna/tmp	2010-11-02 09:33:17.413413-05
+iti41-source-id	1.3.6.1.4.1.19376.2.840.1.1.2.1	2010-12-20 13:17:12.478876-06
+scp-ae-title	RSNA-NIBIB-4	2011-01-10 18:35:16.668828-06
+scu-ae-title	RSNA-NIBIB-4	2011-01-10 18:43:13.369949-06
+consent-expired-days	90	2011-01-13 12:38:28.356374-06
+iti8-pix-uri	mllps://173.35.208.226:8888	2011-01-18 17:28:11.313511-06
+iti8-reg-uri	mllps://173.35.208.226:8890	2011-01-18 17:28:41.684491-06
+iti41-endpoint-uri-test	http://localhost:8888/	2011-02-03 19:10:33.864317-06
+iti41-endpoint-uri	https://173.35.208.226/services/xdsrepositoryb	2011-02-14 11:50:51.109287-06
 \.
 
 
@@ -1083,72 +1108,14 @@ COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
 --
 
 COPY exams (exam_id, accession_number, patient_id, exam_description, modified_date) FROM stdin;
-7	IHE383143.3	7	FINGER,LEFT	2010-09-16 14:36:59.445109-05
-60	IHE2541.25	56	Abdomen CT	2010-10-14 15:35:09.192044-05
-61	IHE2541.26	57	Abdomen CT	2010-10-14 16:56:34.765844-05
-62	IHE2541.27	58	Abdomen CT	2010-10-14 17:04:05.502752-05
-63	IHE2541.28	59	Abdomen CT	2010-10-14 17:22:33.163895-05
-64	IHE2541.29	60	Abdomen CT	2010-10-15 16:33:26.303215-05
-65	IHE2541.30	61	Abdomen CT	2010-10-15 16:35:06.841609-05
-66	IHE288621.0	62	Abdomen CT (2 images)	2010-10-19 13:37:02.970806-05
-16	IHE203981.2	16	Head MR	2010-09-21 18:18:33.335371-05
-67	IHE64729.0	63	Abdomen CT (1 image)	2010-10-20 08:59:47.048174-05
-19	IHE824357.1	19	Head MR	2010-09-24 12:38:17.939907-05
-20	IHE824357.3	20	Head MR	2010-09-24 12:53:47.280339-05
-21	IHE824357.4	21	Head MR	2010-09-24 15:03:34.297681-05
-22	IHE484882.0	22	Head MR	2010-09-28 13:28:29.395166-05
-23	IHE316111.0	23	Head MR	2010-09-30 10:07:33.584058-05
-24	IHE355299.1	24	Head MR	2010-09-30 10:26:00.505566-05
-25	IHE355299.4	25	Head MR	2010-09-30 10:34:03.567277-05
-26	IHE355299.7	26	Head MR	2010-09-30 10:34:49.788756-05
-27	IHE355299.10	27	Head MR	2010-09-30 10:37:05.109735-05
-28	IHE639821.1	28	Head MR	2010-09-30 10:46:32.173463-05
-29	IHE941111.0	29	Head MR	2010-10-01 15:11:50.891358-05
-30	IHE862899.1	30	Head MR	2010-10-01 16:00:48.146698-05
-31	IHE862899.3	31	Head MR	2010-10-01 16:04:59.118416-05
-32	IHE862899.7	32	Head MR	2010-10-01 16:09:04.720667-05
-33	IHE862899.9	33	Head MR	2010-10-01 16:10:45.914714-05
-34	IHE862899.12	34	Head MR	2010-10-01 16:27:57.22828-05
-35	IHE862899.16	35	Head MR	2010-10-01 16:47:31.205514-05
-36	IHE484882.3	36	Head MR	2010-10-11 13:19:16.342478-05
-37	IHE484882.5	37	Head MR	2010-10-11 13:20:41.116054-05
-38	IHE484882.7	38	Head MR	2010-10-11 13:28:26.499306-05
-39	IHE323383.2	39	Head MR	2010-10-11 14:52:30.706886-05
-40	IHE809846.8	40	Abdomen CT	2010-10-12 21:32:04.239531-05
-41	IHE9357.9	41	Abdomen CT	2010-10-12 21:51:13.702044-05
-42	IHE9357.10	42	Abdomen CT	2010-10-13 09:34:40.445665-05
-43	IHE9357.11	43	Abdomen CT	2010-10-13 12:40:11.410151-05
-44	IHE112174.2	44	Head MR	2010-10-13 13:11:26.402552-05
-45	IHE112174.4	45	Head MR	2010-10-13 13:13:45.86606-05
-46	IHE112174.8	46	Head MR	2010-10-13 13:23:30.025996-05
-47	IHE9357.12	47	Abdomen CT	2010-10-13 13:40:57.565182-05
-48	IHE9357.13	48	Abdomen CT	2010-10-13 14:03:06.047533-05
-49	IHE9357.14	48	Abdomen CT	2010-10-13 14:03:11.18687-05
-50	IHE9357.15	49	Abdomen CT	2010-10-13 15:17:41.626474-05
-51	IHE9357.16	49	Abdomen CT	2010-10-13 15:17:47.163042-05
-52	IHE9357.17	50	Abdomen CT	2010-10-13 18:47:50.749819-05
-53	IHE9357.18	50	Abdomen CT	2010-10-13 18:47:56.294831-05
-54	IHE9357.19	51	Abdomen CT	2010-10-13 18:57:53.685576-05
-55	IHE9357.20	51	Abdomen CT	2010-10-13 18:57:58.991772-05
-56	IHE2541.21	52	Abdomen CT	2010-10-14 10:45:56.292832-05
-57	IHE2541.22	53	Abdomen CT	2010-10-14 13:10:12.141708-05
-58	IHE2541.23	54	Abdomen CT	2010-10-14 13:21:05.107787-05
-59	IHE2541.24	55	Abdomen CT	2010-10-14 14:53:25.11096-05
-68	IHE64729.1	64	Abdomen CT (1 image)	2010-10-20 09:13:17.996675-05
-69	IHE64729.2	65	Abdomen CT (1 image)	2010-10-20 09:31:34.045772-05
-70	IHE64729.3	66	Abdomen CT (1 image)	2010-10-20 10:08:11.438104-05
-71	IHE64729.4	67	Abdomen CT (1 image)	2010-10-20 22:12:11.708267-05
-72	IHE64729.5	68	Abdomen CT (1 image)	2010-10-20 22:26:47.351823-05
-73	IHE64729.6	69	Abdomen CT (1 image)	2010-10-20 23:04:57.368899-05
-74	IHE64729.7	70	Abdomen CT (1 image)	2010-10-20 23:12:52.063851-05
-75	IHE64729.8	71	Abdomen CT (1 image)	2010-10-20 23:32:21.932322-05
-76	IHE64729.9	72	Abdomen CT (1 image)	2010-10-20 23:48:19.578397-05
-77	IHE64729.10	73	Abdomen CT (1 image)	2010-10-21 16:41:13.485362-05
-78	IHE64729.11	74	Abdomen CT (1 image)	2010-10-21 16:52:59.707255-05
-79	IHE64729.12	75	Abdomen CT (1 image)	2010-10-21 21:08:19.025841-05
-80	IHE64729.13	76	Abdomen CT (1 image)	2010-10-21 21:54:52.214797-05
-81	IHE64729.14	77	Abdomen CT (1 image)	2010-10-21 22:15:47.082129-05
-82	IHE64729.15	78	Abdomen CT (1 image)	2010-10-21 23:02:16.401034-05
+84	IHE759956.1	80	MR Knee	2010-12-20 13:22:34.051404-06
+85	IHE759956.2	81	MR Knee	2010-12-20 13:23:17.012515-06
+86	IHE722914.6	82	DTI-002	2011-01-10 18:46:55.077574-06
+87	IHE722914.7	83	DTI-002	2011-01-10 19:04:12.636615-06
+88	IHE722914.8	84	DTI-002	2011-01-11 16:01:44.008232-06
+89	IHE502600.0	85	MR Head	2011-01-27 09:07:07.047349-06
+90	IHE502600.1	86	MR Head	2011-01-27 09:35:42.268635-06
+91	IHE502600.2	87	MR Head	2011-01-27 09:41:01.30479-06
 \.
 
 
@@ -1157,203 +1124,140 @@ COPY exams (exam_id, accession_number, patient_id, exam_description, modified_da
 --
 
 COPY hipaa_audit_accession_numbers (id, view_id, accession_number, modified_date) FROM stdin;
-1	6	IHE383143.3	\N
-2	8	IHE383143.3	\N
-3	10	IHE383143.3	\N
-4	11	IHE383143.3	\N
-5	17	FN14	\N
-6	25	IHE383143.3	\N
-7	28	IHE383143.3	\N
-8	30	IHE383143.3	\N
-9	35	FN15	\N
-10	38	FN15	\N
-11	40	FN15	\N
-12	47	IHE383143.3	\N
-13	48	IHE383143.3	\N
-14	53	IHE383143.3	\N
-15	55	IHE383143.3	\N
-16	58	IHE383143.3	\N
-17	64	FN12	\N
-18	67	FN12	\N
-19	69	FN12	\N
-20	74	IHE824357.3	\N
-21	77	IHE824357.3	\N
-22	79	IHE824357.3	\N
-23	81	IHE824357.3	\N
-24	87	IHE824357.1	\N
-25	90	IHE824357.1	\N
-26	92	IHE824357.1	\N
-27	94	IHE824357.1	\N
-28	99	IHE383143.3	\N
-29	101	IHE383143.3	\N
-30	103	IHE383143.3	\N
-31	104	IHE383143.3	\N
-32	108	IHE383143.3	\N
-33	110	IHE383143.3	\N
-34	112	IHE383143.3	\N
-35	113	IHE383143.3	\N
-36	114	IHE383143.3	\N
-37	115	IHE383143.3	\N
-38	122	IHE383143.3	\N
-39	130	IHE383143.3	\N
-40	132	IHE383143.3	\N
-41	134	IHE383143.3	\N
-42	142	IHE484882.0	\N
-43	145	IHE484882.0	\N
-44	147	IHE484882.0	\N
-45	148	IHE484882.0	\N
-46	161	IHE484882.0	\N
-47	166	IHE484882.0	\N
-48	168	IHE484882.0	\N
-49	170	IHE484882.0	\N
-50	176	IHE862899.3	\N
-51	178	IHE862899.3	\N
-52	180	IHE862899.3	\N
-53	210	IHE355299.7	\N
-54	213	IHE355299.7	\N
-55	215	IHE355299.7	\N
-56	221	IHE824357.3	\N
-57	223	IHE824357.3	\N
-58	226	IHE824357.3	\N
-59	243	IHE316111.0	\N
-60	269	IHE484882.5	\N
-61	272	IHE484882.5	\N
-62	283	IHE9357.10	\N
-63	286	IHE9357.10	\N
-64	288	IHE9357.10	\N
-65	300	IHE9357.10	\N
-66	306	IHE9357.10	\N
-67	308	IHE9357.10	\N
-68	310	IHE9357.10	\N
-69	331	IHE9357.11	\N
-70	334	IHE9357.11	\N
-71	336	IHE9357.11	\N
-72	346	IHE9357.12	\N
-73	351	IHE9357.12	\N
-74	353	IHE9357.12	\N
-75	378	IHE9357.11	\N
-76	380	IHE9357.11	\N
-77	382	IHE9357.11	\N
-78	398	IHE112174.2	\N
-79	406	IHE9357.13	\N
-80	406	IHE9357.14	\N
-81	414	IHE9357.12	\N
-82	415	IHE9357.13	\N
-83	415	IHE9357.14	\N
-84	418	IHE9357.13	\N
-85	418	IHE9357.14	\N
-86	421	IHE9357.12	\N
-87	423	IHE9357.12	\N
-88	434	IHE9357.15	\N
-89	434	IHE9357.16	\N
-90	441	IHE9357.15	\N
-91	441	IHE9357.16	\N
-92	444	IHE9357.15	\N
-93	444	IHE9357.16	\N
-94	446	IHE9357.15	\N
-95	446	IHE9357.16	\N
-96	453	IHE9357.17	\N
-97	453	IHE9357.18	\N
-98	457	IHE9357.18	\N
-99	459	IHE9357.17	\N
-100	459	IHE9357.18	\N
-101	465	IHE9357.19	\N
-102	465	IHE9357.20	\N
-103	469	IHE9357.20	\N
-104	471	IHE9357.19	\N
-105	471	IHE9357.20	\N
-106	474	IHE9357.19	\N
-107	474	IHE9357.20	\N
-108	476	IHE9357.19	\N
-109	476	IHE9357.20	\N
-110	483	IHE2541.21	\N
-111	486	IHE2541.21	\N
-112	488	IHE2541.21	\N
-113	500	IHE2541.22	\N
-114	503	IHE2541.22	\N
-115	505	IHE2541.22	\N
-116	506	IHE2541.22	\N
-117	516	IHE2541.23	\N
-118	519	IHE2541.23	\N
-119	521	IHE2541.23	\N
-120	528	IHE2541.24	\N
-121	531	IHE2541.24	\N
-122	533	IHE2541.24	\N
-123	542	IHE2541.25	\N
-124	545	IHE2541.25	\N
-125	547	IHE2541.25	\N
-126	553	IHE9357.11	\N
-127	557	IHE112174.4	\N
-128	561	IHE112174.4	\N
-129	563	IHE112174.4	\N
-130	577	IHE2541.25	\N
-131	582	IHE2541.26	\N
-132	585	IHE2541.26	\N
-133	587	IHE2541.26	\N
-134	594	IHE2541.27	\N
-135	597	IHE2541.27	\N
-136	599	IHE2541.27	\N
-137	605	IHE2541.28	\N
-138	608	IHE2541.28	\N
-139	610	IHE2541.28	\N
-140	615	IHE2541.29	\N
-141	618	IHE2541.29	\N
-142	620	IHE2541.29	\N
-143	631	IHE2541.30	\N
-144	634	IHE2541.30	\N
-145	636	IHE2541.30	\N
-146	643	IHE288621.0	\N
-147	646	IHE288621.0	\N
-148	648	IHE288621.0	\N
-149	667	IHE64729.0	\N
-150	670	IHE64729.0	\N
-151	673	IHE64729.0	\N
-152	679	IHE64729.1	\N
-153	682	IHE64729.1	\N
-154	684	IHE64729.1	\N
-155	690	IHE64729.2	\N
-156	693	IHE64729.2	\N
-157	695	IHE64729.2	\N
-158	703	IHE64729.3	\N
-159	706	IHE64729.3	\N
-160	708	IHE64729.3	\N
-161	714	IHE64729.4	\N
-162	717	IHE64729.4	\N
-163	719	IHE64729.4	\N
-164	726	IHE64729.5	\N
-165	729	IHE64729.4	\N
-166	729	IHE64729.5	\N
-167	731	IHE64729.5	\N
-168	737	IHE64729.6	\N
-169	740	IHE64729.6	\N
-170	742	IHE64729.6	\N
-171	748	IHE64729.7	\N
-172	751	IHE64729.7	\N
-173	753	IHE64729.7	\N
-174	759	IHE64729.8	\N
-175	762	IHE64729.8	\N
-176	764	IHE64729.8	\N
-177	770	IHE64729.9	\N
-178	773	IHE64729.9	\N
-179	775	IHE64729.9	\N
-180	781	IHE64729.10	\N
-181	784	IHE64729.10	\N
-182	786	IHE64729.10	\N
-183	792	IHE64729.11	\N
-184	796	IHE64729.11	\N
-185	798	IHE64729.11	\N
-186	804	IHE64729.12	\N
-187	807	IHE64729.12	\N
-188	809	IHE64729.12	\N
-189	815	IHE64729.13	\N
-190	818	IHE64729.13	\N
-191	820	IHE64729.13	\N
-192	826	IHE64729.14	\N
-193	829	IHE64729.14	\N
-194	831	IHE64729.14	\N
-195	837	IHE64729.15	\N
-196	840	IHE64729.15	\N
-197	842	IHE64729.15	\N
+198	846	IHE759956.2	\N
+199	848	IHE759956.2	\N
+200	851	IHE759956.2	\N
+201	866	IHE759956.2	\N
+202	875	IHE722914.7	\N
+203	879	IHE722914.7	\N
+204	883	IHE722914.7	\N
+205	884	IHE722914.7	\N
+206	885	IHE722914.7	\N
+207	889	IHE759956.1	\N
+208	891	IHE759956.1	\N
+209	895	IHE759956.2	\N
+210	899	IHE759956.2	\N
+211	903	IHE759956.2	\N
+212	905	IHE759956.2	\N
+213	914	IHE722914.8	\N
+214	916	IHE722914.8	\N
+215	922	IHE722914.8	\N
+216	926	IHE722914.8	\N
+217	928	IHE722914.8	\N
+218	947	IHE759956.2	\N
+219	949	IHE759956.2	\N
+220	952	IHE759956.2	\N
+221	958	IHE759956.1	\N
+222	960	IHE759956.1	\N
+223	963	IHE759956.1	\N
+224	975	IHE759956.1	\N
+225	977	IHE759956.1	\N
+226	980	IHE759956.1	\N
+227	987	IHE759956.2	\N
+228	989	IHE759956.2	\N
+229	992	IHE759956.2	\N
+230	995	IHE759956.2	\N
+231	1000	IHE759956.2	\N
+232	1002	IHE759956.2	\N
+233	1005	IHE759956.2	\N
+234	1013	IHE759956.1	\N
+235	1015	IHE759956.1	\N
+236	1018	IHE759956.1	\N
+237	1021	IHE759956.1	\N
+238	1024	IHE759956.1	\N
+239	1027	IHE759956.1	\N
+240	1030	IHE759956.1	\N
+241	1041	IHE722914.7	\N
+242	1042	IHE722914.7	\N
+243	1047	IHE722914.8	\N
+244	1049	IHE722914.8	\N
+245	1052	IHE722914.8	\N
+246	1056	IHE722914.8	\N
+247	1058	IHE722914.8	\N
+248	1061	IHE722914.8	\N
+249	1065	IHE722914.8	\N
+250	1067	IHE722914.8	\N
+251	1071	IHE722914.8	\N
+252	1075	IHE759956.1	\N
+253	1079	IHE759956.1	\N
+254	1081	IHE759956.1	\N
+255	1084	IHE759956.1	\N
+256	1089	IHE722914.6	\N
+257	1091	IHE722914.6	\N
+258	1094	IHE722914.6	\N
+259	1098	IHE759956.1	\N
+260	1102	IHE722914.7	\N
+261	1106	IHE722914.6	\N
+262	1110	IHE759956.2	\N
+263	1117	IHE759956.2	\N
+264	1119	IHE759956.2	\N
+265	1120	IHE759956.2	\N
+266	1122	IHE759956.2	\N
+267	1124	IHE759956.2	\N
+268	1127	IHE759956.2	\N
+269	1132	IHE759956.2	\N
+270	1134	IHE759956.2	\N
+271	1135	IHE759956.2	\N
+272	1140	IHE759956.1	\N
+273	1142	IHE759956.1	\N
+274	1145	IHE759956.1	\N
+275	1147	IHE759956.1	\N
+276	1152	IHE722914.7	\N
+277	1154	IHE722914.7	\N
+278	1157	IHE722914.7	\N
+279	1178	IHE759956.1	\N
+280	1180	IHE759956.1	\N
+281	1183	IHE759956.1	\N
+282	1192	IHE722914.6	\N
+283	1194	IHE722914.6	\N
+284	1197	IHE722914.6	\N
+285	1201	IHE759956.1	\N
+286	1203	IHE759956.1	\N
+287	1209	IHE759956.1	\N
+288	1211	IHE759956.1	\N
+289	1214	IHE759956.1	\N
+290	1220	IHE722914.6	\N
+291	1222	IHE722914.6	\N
+292	1225	IHE722914.6	\N
+293	1230	IHE502600.1	\N
+294	1232	IHE502600.1	\N
+295	1235	IHE502600.1	\N
+296	1241	IHE502600.2	\N
+297	1243	IHE502600.2	\N
+298	1246	IHE502600.2	\N
+299	1251	IHE502600.1	\N
+300	1255	IHE759956.1	\N
+301	1259	IHE502600.2	\N
+302	1266	IHE759956.1	\N
+303	1270	IHE759956.1	\N
+304	1272	IHE759956.1	\N
+305	1275	IHE759956.1	\N
+306	1280	IHE759956.1	\N
+307	1282	IHE759956.1	\N
+308	1285	IHE759956.1	\N
+309	1295	IHE502600.2	\N
+310	1297	IHE502600.2	\N
+311	1300	IHE502600.2	\N
+312	1305	IHE502600.2	\N
+313	1307	IHE502600.2	\N
+314	1310	IHE502600.2	\N
+315	1318	IHE502600.1	\N
+316	1320	IHE502600.1	\N
+317	1323	IHE502600.1	\N
+318	1342	IHE502600.1	\N
+319	1344	IHE502600.1	\N
+320	1347	IHE502600.1	\N
+321	1372	IHE502600.1	\N
+322	1374	IHE502600.1	\N
+323	1396	IHE722914.6	\N
+324	1398	IHE722914.6	\N
+325	1401	IHE722914.6	\N
+326	1412	IHE722914.7	\N
+327	1414	IHE722914.7	\N
+328	1417	IHE722914.7	\N
+329	1424	IHE722914.8	\N
+330	1426	IHE722914.8	\N
+331	1429	IHE722914.8	\N
 \.
 
 
@@ -1362,1724 +1266,361 @@ COPY hipaa_audit_accession_numbers (id, view_id, accession_number, modified_date
 --
 
 COPY hipaa_audit_mrns (id, view_id, mrn, modified_date) FROM stdin;
-1	3	678188495	\N
-2	4	678188495	\N
-3	4	478684182	\N
-4	4	757590308	\N
-5	4	211907445	\N
-6	4	01234561	\N
-7	5	678188495	\N
-8	6	678188495	\N
-9	7	678188495	\N
-10	8	678188495	\N
-11	9	678188495	\N
-12	10	678188495	\N
-13	11	678188495	\N
-14	12	678188495	\N
-15	14	678188495	\N
-16	14	478684182	\N
-17	14	757590308	\N
-18	14	211907445	\N
-19	14	01234561	\N
-20	15	211907445	\N
-21	16	211907445	\N
-22	17	211907445	\N
-23	18	211907445	\N
-24	20	211907445	\N
-25	23	678188495	\N
-26	23	478684182	\N
-27	23	757590308	\N
-28	23	211907445	\N
-29	23	01234561	\N
-30	24	678188495	\N
-31	25	678188495	\N
-32	26	678188495	\N
-33	28	678188495	\N
-34	29	678188495	\N
-35	30	678188495	\N
-36	31	678188495	\N
-37	32	678188495	\N
-38	32	478684182	\N
-39	32	757590308	\N
-40	32	211907445	\N
-41	32	01234561	\N
-42	32	478129521	\N
-43	32	444933559	\N
-44	32	440056642	\N
-45	32	550895459	\N
-46	32	852215460	\N
-47	33	852215460	\N
-48	34	852215460	\N
-49	35	852215460	\N
-50	36	852215460	\N
-51	37	852215460	\N
-52	38	852215460	\N
-53	39	852215460	\N
-54	40	852215460	\N
-55	42	678188495	\N
-56	42	550895459	\N
-57	42	852215460	\N
-58	45	678188495	\N
-59	45	550895459	\N
-60	45	852215460	\N
-61	46	678188495	\N
-62	47	678188495	\N
-63	48	678188495	\N
-64	49	678188495	\N
-65	51	678188495	\N
-66	51	550895459	\N
-67	51	852215460	\N
-68	52	678188495	\N
-69	53	678188495	\N
-70	54	678188495	\N
-71	55	678188495	\N
-72	56	678188495	\N
-73	57	678188495	\N
-74	58	678188495	\N
-75	60	678188495	\N
-76	60	550895459	\N
-77	60	852215460	\N
-78	60	288875450	\N
-79	61	288875450	\N
-80	62	288875450	\N
-81	63	288875450	\N
-82	64	288875450	\N
-83	65	288875450	\N
-84	66	288875450	\N
-85	67	288875450	\N
-86	68	288875450	\N
-87	69	288875450	\N
-88	71	288875450	\N
-89	71	678188495	\N
-90	71	550895459	\N
-91	71	852215460	\N
-92	71	389321721	\N
-93	71	199710663	\N
-94	72	199710663	\N
-95	73	199710663	\N
-96	74	199710663	\N
-97	75	199710663	\N
-98	76	199710663	\N
-99	77	199710663	\N
-100	78	199710663	\N
-101	79	199710663	\N
-102	80	199710663	\N
-103	81	199710663	\N
-104	82	199710663	\N
-105	84	288875450	\N
-106	84	678188495	\N
-107	84	550895459	\N
-108	84	852215460	\N
-109	84	389321721	\N
-110	84	199710663	\N
-111	85	389321721	\N
-112	86	389321721	\N
-113	87	389321721	\N
-114	88	389321721	\N
-115	89	389321721	\N
-116	90	389321721	\N
-117	91	389321721	\N
-118	92	389321721	\N
-119	93	389321721	\N
-120	94	389321721	\N
-121	95	389321721	\N
-122	97	288875450	\N
-123	97	678188495	\N
-124	97	550895459	\N
-125	97	852215460	\N
-126	97	389321721	\N
-127	97	199710663	\N
-128	98	678188495	\N
-129	99	678188495	\N
-130	100	678188495	\N
-131	101	678188495	\N
-132	102	678188495	\N
-133	103	678188495	\N
-134	104	678188495	\N
-135	106	678188495	\N
-136	106	852215460	\N
-137	106	389321721	\N
-138	106	199710663	\N
-139	106	577900744	\N
-140	107	678188495	\N
-141	108	678188495	\N
-142	109	678188495	\N
-143	110	678188495	\N
-144	111	678188495	\N
-145	112	678188495	\N
-146	113	678188495	\N
-147	114	678188495	\N
-148	115	678188495	\N
-149	116	678188495	\N
-150	118	678188495	\N
-151	118	852215460	\N
-152	118	389321721	\N
-153	118	199710663	\N
-154	118	577900744	\N
-155	120	678188495	\N
-156	120	852215460	\N
-157	120	577900744	\N
-158	120	389321721	\N
-159	120	199710663	\N
-160	121	678188495	\N
-161	122	678188495	\N
-162	128	678188495	\N
-163	128	852215460	\N
-164	128	577900744	\N
-165	128	389321721	\N
-166	128	199710663	\N
-167	129	678188495	\N
-168	130	678188495	\N
-169	131	678188495	\N
-170	132	678188495	\N
-171	133	678188495	\N
-172	134	678188495	\N
-173	135	678188495	\N
-174	138	678188495	\N
-175	138	852215460	\N
-176	138	577900744	\N
-177	138	389321721	\N
-178	138	199710663	\N
-179	138	683319969	\N
-180	139	683319969	\N
-181	140	683319969	\N
-182	141	683319969	\N
-183	142	683319969	\N
-184	143	683319969	\N
-185	144	683319969	\N
-186	145	683319969	\N
-187	146	683319969	\N
-188	147	683319969	\N
-189	148	683319969	\N
-190	154	678188495	\N
-191	156	678188495	\N
-192	156	852215460	\N
-193	156	577900744	\N
-194	156	389321721	\N
-195	156	199710663	\N
-196	156	683319969	\N
-197	159	678188495	\N
-198	159	852215460	\N
-199	159	577900744	\N
-200	159	389321721	\N
-201	159	199710663	\N
-202	159	683319969	\N
-203	159	818163599	\N
-204	159	313922369	\N
-205	159	900340334	\N
-206	159	169998861	\N
-207	159	319384274	\N
-208	159	941543187	\N
-209	159	154451252	\N
-210	159	196921969	\N
-211	159	188602961	\N
-212	159	650856216	\N
-213	159	603406323	\N
-214	159	613859951	\N
-215	159	393594062	\N
-216	160	683319969	\N
-217	161	683319969	\N
-218	162	683319969	\N
-219	163	683319969	\N
-220	164	683319969	\N
-221	165	683319969	\N
-222	166	683319969	\N
-223	167	683319969	\N
-224	168	683319969	\N
-225	169	683319969	\N
-226	170	683319969	\N
-227	171	683319969	\N
-228	173	678188495	\N
-229	173	852215460	\N
-230	173	577900744	\N
-231	173	389321721	\N
-232	173	199710663	\N
-233	173	683319969	\N
-234	173	818163599	\N
-235	173	313922369	\N
-236	173	900340334	\N
-237	173	169998861	\N
-238	173	319384274	\N
-239	173	941543187	\N
-240	173	154451252	\N
-241	173	196921969	\N
-242	173	188602961	\N
-243	173	650856216	\N
-244	173	603406323	\N
-245	173	613859951	\N
-246	173	393594062	\N
-247	174	188602961	\N
-248	175	188602961	\N
-249	176	188602961	\N
-250	177	188602961	\N
-251	178	188602961	\N
-252	179	188602961	\N
-253	180	188602961	\N
-254	183	678188495	\N
-255	183	852215460	\N
-256	183	577900744	\N
-257	183	389321721	\N
-258	183	199710663	\N
-259	183	683319969	\N
-260	183	818163599	\N
-261	183	313922369	\N
-262	183	900340334	\N
-263	183	169998861	\N
-264	183	319384274	\N
-265	183	941543187	\N
-266	183	154451252	\N
-267	183	196921969	\N
-268	183	188602961	\N
-269	183	650856216	\N
-270	183	603406323	\N
-271	183	613859951	\N
-272	183	393594062	\N
-273	184	678188495	\N
-274	184	852215460	\N
-275	184	577900744	\N
-276	184	389321721	\N
-277	184	199710663	\N
-278	184	683319969	\N
-279	184	818163599	\N
-280	184	313922369	\N
-281	184	900340334	\N
-282	184	169998861	\N
-283	184	319384274	\N
-284	184	941543187	\N
-285	184	154451252	\N
-286	184	196921969	\N
-287	184	188602961	\N
-288	184	650856216	\N
-289	184	603406323	\N
-290	184	613859951	\N
-291	184	393594062	\N
-292	186	678188495	\N
-293	186	852215460	\N
-294	186	577900744	\N
-295	186	389321721	\N
-296	186	199710663	\N
-297	186	683319969	\N
-298	186	818163599	\N
-299	186	313922369	\N
-300	186	900340334	\N
-301	186	169998861	\N
-302	186	319384274	\N
-303	186	941543187	\N
-304	186	154451252	\N
-305	186	196921969	\N
-306	186	188602961	\N
-307	186	650856216	\N
-308	186	603406323	\N
-309	186	613859951	\N
-310	186	393594062	\N
-311	188	678188495	\N
-312	188	852215460	\N
-313	188	577900744	\N
-314	188	389321721	\N
-315	188	199710663	\N
-316	188	683319969	\N
-317	188	818163599	\N
-318	188	313922369	\N
-319	188	900340334	\N
-320	188	169998861	\N
-321	188	319384274	\N
-322	188	941543187	\N
-323	188	154451252	\N
-324	188	196921969	\N
-325	188	188602961	\N
-326	188	650856216	\N
-327	188	603406323	\N
-328	188	613859951	\N
-329	188	393594062	\N
-330	190	678188495	\N
-331	190	852215460	\N
-332	190	577900744	\N
-333	190	389321721	\N
-334	190	199710663	\N
-335	190	683319969	\N
-336	190	818163599	\N
-337	190	313922369	\N
-338	190	900340334	\N
-339	190	169998861	\N
-340	190	319384274	\N
-341	190	941543187	\N
-342	190	154451252	\N
-343	190	196921969	\N
-344	190	188602961	\N
-345	190	650856216	\N
-346	190	603406323	\N
-347	190	613859951	\N
-348	190	393594062	\N
-349	192	678188495	\N
-350	192	852215460	\N
-351	192	577900744	\N
-352	192	389321721	\N
-353	192	199710663	\N
-354	192	683319969	\N
-355	192	818163599	\N
-356	192	313922369	\N
-357	192	900340334	\N
-358	192	169998861	\N
-359	192	319384274	\N
-360	192	941543187	\N
-361	192	154451252	\N
-362	192	196921969	\N
-363	192	188602961	\N
-364	192	650856216	\N
-365	192	603406323	\N
-366	192	613859951	\N
-367	192	393594062	\N
-368	196	678188495	\N
-369	196	852215460	\N
-370	196	577900744	\N
-371	196	389321721	\N
-372	196	199710663	\N
-373	196	683319969	\N
-374	196	818163599	\N
-375	196	313922369	\N
-376	196	900340334	\N
-377	196	169998861	\N
-378	196	319384274	\N
-379	196	941543187	\N
-380	196	154451252	\N
-381	196	196921969	\N
-382	196	188602961	\N
-383	196	650856216	\N
-384	196	603406323	\N
-385	196	613859951	\N
-386	196	393594062	\N
-387	198	678188495	\N
-388	198	852215460	\N
-389	198	577900744	\N
-390	198	389321721	\N
-391	198	199710663	\N
-392	198	683319969	\N
-393	198	818163599	\N
-394	198	313922369	\N
-395	198	900340334	\N
-396	198	169998861	\N
-397	198	319384274	\N
-398	198	941543187	\N
-399	198	154451252	\N
-400	198	196921969	\N
-401	198	188602961	\N
-402	198	650856216	\N
-403	198	603406323	\N
-404	198	613859951	\N
-405	198	393594062	\N
-406	200	678188495	\N
-407	200	852215460	\N
-408	200	577900744	\N
-409	200	389321721	\N
-410	200	199710663	\N
-411	200	683319969	\N
-412	200	818163599	\N
-413	200	313922369	\N
-414	200	900340334	\N
-415	200	169998861	\N
-416	200	319384274	\N
-417	200	941543187	\N
-418	200	154451252	\N
-419	200	196921969	\N
-420	200	188602961	\N
-421	200	650856216	\N
-422	200	603406323	\N
-423	200	613859951	\N
-424	200	393594062	\N
-425	202	678188495	\N
-426	202	852215460	\N
-427	202	577900744	\N
-428	202	389321721	\N
-429	202	199710663	\N
-430	202	683319969	\N
-431	202	818163599	\N
-432	202	313922369	\N
-433	202	900340334	\N
-434	202	169998861	\N
-435	202	319384274	\N
-436	202	941543187	\N
-437	202	154451252	\N
-438	202	196921969	\N
-439	202	188602961	\N
-440	202	650856216	\N
-441	202	603406323	\N
-442	202	613859951	\N
-443	202	393594062	\N
-444	206	678188495	\N
-445	206	852215460	\N
-446	206	577900744	\N
-447	206	389321721	\N
-448	206	199710663	\N
-449	206	683319969	\N
-450	206	818163599	\N
-451	206	313922369	\N
-452	206	900340334	\N
-453	206	169998861	\N
-454	206	319384274	\N
-455	206	941543187	\N
-456	206	154451252	\N
-457	206	196921969	\N
-458	206	188602961	\N
-459	206	650856216	\N
-460	206	603406323	\N
-461	206	613859951	\N
-462	206	393594062	\N
-463	207	169998861	\N
-464	208	169998861	\N
-465	209	169998861	\N
-466	210	169998861	\N
-467	211	169998861	\N
-468	212	169998861	\N
-469	213	169998861	\N
-470	214	169998861	\N
-471	215	169998861	\N
-472	219	678188495	\N
-473	219	852215460	\N
-474	219	577900744	\N
-475	219	389321721	\N
-476	219	199710663	\N
-477	219	683319969	\N
-478	219	818163599	\N
-479	219	313922369	\N
-480	219	900340334	\N
-481	219	169998861	\N
-482	219	319384274	\N
-483	219	941543187	\N
-484	219	154451252	\N
-485	219	196921969	\N
-486	219	188602961	\N
-487	219	650856216	\N
-488	219	603406323	\N
-489	219	613859951	\N
-490	219	393594062	\N
-491	220	199710663	\N
-492	221	199710663	\N
-493	222	199710663	\N
-494	223	199710663	\N
-495	224	199710663	\N
-496	225	199710663	\N
-497	226	199710663	\N
-498	230	199710663	\N
-499	232	678188495	\N
-500	232	852215460	\N
-501	232	577900744	\N
-502	232	389321721	\N
-503	232	199710663	\N
-504	232	683319969	\N
-505	232	818163599	\N
-506	232	313922369	\N
-507	232	900340334	\N
-508	232	169998861	\N
-509	232	319384274	\N
-510	232	941543187	\N
-511	232	154451252	\N
-512	232	196921969	\N
-513	232	188602961	\N
-514	232	650856216	\N
-515	232	603406323	\N
-516	232	613859951	\N
-517	232	393594062	\N
-518	239	678188495	\N
-519	239	852215460	\N
-520	239	577900744	\N
-521	239	389321721	\N
-522	239	199710663	\N
-523	239	683319969	\N
-524	239	818163599	\N
-525	239	313922369	\N
-526	239	900340334	\N
-527	239	169998861	\N
-528	239	319384274	\N
-529	239	941543187	\N
-530	239	154451252	\N
-531	239	196921969	\N
-532	239	188602961	\N
-533	239	650856216	\N
-534	239	603406323	\N
-535	239	613859951	\N
-536	239	393594062	\N
-537	240	818163599	\N
-538	241	818163599	\N
-539	242	818163599	\N
-540	243	818163599	\N
-541	244	818163599	\N
-542	250	818163599	\N
-543	261	678188495	\N
-544	261	852215460	\N
-545	261	577900744	\N
-546	261	389321721	\N
-547	261	199710663	\N
-548	261	683319969	\N
-549	261	818163599	\N
-550	261	313922369	\N
-551	261	900340334	\N
-552	261	169998861	\N
-553	261	319384274	\N
-554	261	941543187	\N
-555	261	154451252	\N
-556	261	196921969	\N
-557	261	188602961	\N
-558	261	650856216	\N
-559	261	603406323	\N
-560	261	613859951	\N
-561	261	393594062	\N
-562	264	852215460	\N
-563	264	577900744	\N
-564	264	199710663	\N
-565	264	683319969	\N
-566	264	288128487	\N
-567	266	852215460	\N
-568	266	577900744	\N
-569	266	199710663	\N
-570	266	683319969	\N
-571	266	288128487	\N
-572	266	123998648	\N
-573	267	123998648	\N
-574	268	123998648	\N
-575	269	123998648	\N
-576	270	123998648	\N
-577	271	123998648	\N
-578	272	123998648	\N
-579	274	678188495	\N
-580	274	852215460	\N
-581	274	577900744	\N
-582	274	389321721	\N
-583	274	199710663	\N
-584	274	683319969	\N
-585	274	818163599	\N
-586	274	313922369	\N
-587	274	900340334	\N
-588	274	169998861	\N
-589	274	319384274	\N
-590	274	941543187	\N
-591	274	154451252	\N
-592	274	196921969	\N
-593	274	188602961	\N
-594	274	650856216	\N
-595	274	603406323	\N
-596	274	613859951	\N
-597	274	393594062	\N
-598	274	288128487	\N
-599	274	123998648	\N
-600	274	939894620	\N
-601	274	147563401	\N
-602	274	903496451	\N
-603	274	251566329	\N
-604	274	283348176	\N
-605	280	283348176	\N
-606	281	283348176	\N
-607	282	283348176	\N
-608	283	283348176	\N
-609	284	283348176	\N
-610	285	283348176	\N
-611	286	283348176	\N
-612	287	283348176	\N
-613	288	283348176	\N
-614	296	283348176	\N
-615	298	283348176	\N
-616	299	283348176	\N
-617	300	283348176	\N
-618	302	283348176	\N
-619	304	283348176	\N
-620	305	283348176	\N
-621	306	283348176	\N
-622	307	283348176	\N
-623	308	283348176	\N
-624	309	283348176	\N
-625	310	283348176	\N
-626	311	283348176	\N
-627	325	283348176	\N
-628	328	764467765	\N
-629	328	678188495	\N
-630	328	852215460	\N
-631	328	577900744	\N
-632	328	389321721	\N
-633	328	199710663	\N
-634	328	683319969	\N
-635	328	818163599	\N
-636	328	313922369	\N
-637	328	900340334	\N
-638	328	169998861	\N
-639	328	319384274	\N
-640	328	941543187	\N
-641	328	154451252	\N
-642	328	196921969	\N
-643	328	188602961	\N
-644	328	650856216	\N
-645	328	603406323	\N
-646	328	613859951	\N
-647	328	393594062	\N
-648	328	288128487	\N
-649	328	123998648	\N
-650	328	939894620	\N
-651	328	147563401	\N
-652	328	903496451	\N
-653	328	251566329	\N
-654	328	283348176	\N
-655	329	764467765	\N
-656	330	764467765	\N
-657	331	764467765	\N
-658	332	764467765	\N
-659	333	764467765	\N
-660	334	764467765	\N
-661	335	764467765	\N
-662	336	764467765	\N
-663	339	764467765	\N
-664	341	764467765	\N
-665	341	731880094	\N
-666	341	632406555	\N
-667	341	678188495	\N
-668	341	981912619	\N
-669	341	852215460	\N
-670	341	130224392	\N
-671	341	577900744	\N
-672	341	389321721	\N
-673	341	199710663	\N
-674	341	683319969	\N
-675	341	818163599	\N
-676	341	313922369	\N
-677	341	900340334	\N
-678	341	169998861	\N
-679	341	319384274	\N
-680	341	941543187	\N
-681	341	154451252	\N
-682	341	196921969	\N
-683	341	188602961	\N
-684	341	650856216	\N
-685	341	603406323	\N
-686	341	613859951	\N
-687	341	393594062	\N
-688	341	288128487	\N
-689	341	123998648	\N
-690	341	939894620	\N
-691	341	147563401	\N
-692	341	903496451	\N
-693	341	251566329	\N
-694	341	283348176	\N
-695	343	130224392	\N
-696	344	130224392	\N
-697	345	130224392	\N
-698	346	130224392	\N
-699	347	130224392	\N
-700	349	764467765	\N
-701	349	731880094	\N
-702	349	632406555	\N
-703	349	678188495	\N
-704	349	981912619	\N
-705	349	852215460	\N
-706	349	130224392	\N
-707	349	577900744	\N
-708	349	389321721	\N
-709	349	199710663	\N
-710	349	683319969	\N
-711	349	818163599	\N
-712	349	313922369	\N
-713	349	900340334	\N
-714	349	169998861	\N
-715	349	319384274	\N
-716	349	941543187	\N
-717	349	154451252	\N
-718	349	196921969	\N
-719	349	188602961	\N
-720	349	650856216	\N
-721	349	603406323	\N
-722	349	613859951	\N
-723	349	393594062	\N
-724	349	288128487	\N
-725	349	123998648	\N
-726	349	939894620	\N
-727	349	147563401	\N
-728	349	903496451	\N
-729	349	251566329	\N
-730	349	283348176	\N
-731	350	130224392	\N
-732	351	130224392	\N
-733	352	130224392	\N
-734	353	130224392	\N
-735	360	130224392	\N
-736	362	731880094	\N
-737	375	764467765	\N
-738	375	731880094	\N
-739	375	632406555	\N
-740	375	678188495	\N
-741	375	981912619	\N
-742	375	852215460	\N
-743	375	130224392	\N
-744	375	577900744	\N
-745	375	389321721	\N
-746	375	199710663	\N
-747	375	683319969	\N
-748	375	818163599	\N
-749	375	313922369	\N
-750	375	900340334	\N
-751	375	169998861	\N
-752	375	319384274	\N
-753	375	941543187	\N
-754	375	154451252	\N
-755	375	196921969	\N
-756	375	188602961	\N
-757	375	650856216	\N
-758	375	603406323	\N
-759	375	613859951	\N
-760	375	393594062	\N
-761	375	288128487	\N
-762	375	123998648	\N
-763	375	939894620	\N
-764	375	147563401	\N
-765	375	903496451	\N
-766	375	251566329	\N
-767	375	283348176	\N
-768	376	764467765	\N
-769	377	764467765	\N
-770	378	764467765	\N
-771	379	764467765	\N
-772	380	764467765	\N
-773	381	764467765	\N
-774	382	764467765	\N
-775	385	764467765	\N
-776	389	764467765	\N
-777	389	731880094	\N
-778	389	632406555	\N
-779	389	678188495	\N
-780	389	981912619	\N
-781	389	852215460	\N
-782	389	130224392	\N
-783	389	577900744	\N
-784	389	389321721	\N
-785	389	199710663	\N
-786	389	683319969	\N
-787	389	818163599	\N
-788	389	313922369	\N
-789	389	900340334	\N
-790	389	169998861	\N
-791	389	319384274	\N
-792	389	941543187	\N
-793	389	154451252	\N
-794	389	196921969	\N
-795	389	188602961	\N
-796	389	650856216	\N
-797	389	603406323	\N
-798	389	613859951	\N
-799	389	393594062	\N
-800	389	288128487	\N
-801	389	123998648	\N
-802	389	939894620	\N
-803	389	147563401	\N
-804	389	903496451	\N
-805	389	251566329	\N
-806	389	283348176	\N
-807	391	731880094	\N
-808	391	632406555	\N
-809	391	188602961	\N
-810	391	613859951	\N
-811	394	731880094	\N
-812	394	632406555	\N
-813	394	613859951	\N
-814	395	731880094	\N
-815	395	632406555	\N
-816	395	188602961	\N
-817	395	613859951	\N
-818	396	731880094	\N
-819	397	731880094	\N
-820	398	731880094	\N
-821	399	731880094	\N
-822	400	731880094	\N
-823	403	317082933	\N
-824	404	317082933	\N
-825	405	317082933	\N
-826	406	317082933	\N
-827	407	317082933	\N
-828	408	317082933	\N
-829	409	317082933	\N
-830	412	130224392	\N
-831	412	283348176	\N
-832	412	317082933	\N
-833	413	130224392	\N
-834	414	130224392	\N
-835	415	317082933	\N
-836	416	130224392	\N
-837	417	317082933	\N
-838	418	317082933	\N
-839	421	130224392	\N
-840	422	130224392	\N
-841	423	130224392	\N
-842	424	130224392	\N
-843	427	764467765	\N
-844	427	731880094	\N
-845	427	632406555	\N
-846	427	678188495	\N
-847	427	981912619	\N
-848	427	852215460	\N
-849	427	130224392	\N
-850	427	577900744	\N
-851	427	389321721	\N
-852	427	199710663	\N
-853	427	683319969	\N
-854	427	818163599	\N
-855	427	313922369	\N
-856	427	900340334	\N
-857	427	169998861	\N
-858	427	319384274	\N
-859	427	941543187	\N
-860	427	154451252	\N
-861	427	196921969	\N
-862	427	188602961	\N
-863	427	650856216	\N
-864	427	603406323	\N
-865	427	613859951	\N
-866	427	393594062	\N
-867	427	288128487	\N
-868	427	123998648	\N
-869	427	939894620	\N
-870	427	147563401	\N
-871	427	903496451	\N
-872	427	251566329	\N
-873	427	283348176	\N
-874	427	317082933	\N
-875	429	317082933	\N
-876	431	764467765	\N
-877	431	102335231	\N
-878	431	731880094	\N
-879	431	632406555	\N
-880	431	678188495	\N
-881	431	981912619	\N
-882	431	852215460	\N
-883	431	130224392	\N
-884	431	577900744	\N
-885	431	389321721	\N
-886	431	199710663	\N
-887	431	683319969	\N
-888	431	818163599	\N
-889	431	313922369	\N
-890	431	900340334	\N
-891	431	169998861	\N
-892	431	319384274	\N
-893	431	941543187	\N
-894	431	154451252	\N
-895	431	196921969	\N
-896	431	188602961	\N
-897	431	650856216	\N
-898	431	603406323	\N
-899	431	613859951	\N
-900	431	393594062	\N
-901	431	288128487	\N
-902	431	123998648	\N
-903	431	939894620	\N
-904	431	147563401	\N
-905	431	903496451	\N
-906	431	251566329	\N
-907	431	283348176	\N
-908	431	317082933	\N
-909	432	102335231	\N
-910	433	102335231	\N
-911	434	102335231	\N
-912	435	102335231	\N
-913	437	102335231	\N
-914	439	764467765	\N
-915	439	102335231	\N
-916	439	731880094	\N
-917	439	632406555	\N
-918	439	678188495	\N
-919	439	981912619	\N
-920	439	852215460	\N
-921	439	130224392	\N
-922	439	577900744	\N
-923	439	389321721	\N
-924	439	199710663	\N
-925	439	683319969	\N
-926	439	818163599	\N
-927	439	313922369	\N
-928	439	900340334	\N
-929	439	169998861	\N
-930	439	319384274	\N
-931	439	941543187	\N
-932	439	154451252	\N
-933	439	196921969	\N
-934	439	188602961	\N
-935	439	650856216	\N
-936	439	603406323	\N
-937	439	613859951	\N
-938	439	393594062	\N
-939	439	288128487	\N
-940	439	123998648	\N
-941	439	939894620	\N
-942	439	147563401	\N
-943	439	903496451	\N
-944	439	251566329	\N
-945	439	283348176	\N
-946	439	317082933	\N
-947	440	102335231	\N
-948	441	102335231	\N
-949	442	102335231	\N
-950	443	102335231	\N
-951	444	102335231	\N
-952	445	102335231	\N
-953	446	102335231	\N
-954	448	102335231	\N
-955	450	764467765	\N
-956	450	102335231	\N
-957	450	818731508	\N
-958	450	731880094	\N
-959	450	632406555	\N
-960	450	678188495	\N
-961	450	981912619	\N
-962	450	852215460	\N
-963	450	130224392	\N
-964	450	577900744	\N
-965	450	389321721	\N
-966	450	199710663	\N
-967	450	683319969	\N
-968	450	818163599	\N
-969	450	313922369	\N
-970	450	900340334	\N
-971	450	169998861	\N
-972	450	319384274	\N
-973	450	941543187	\N
-974	450	154451252	\N
-975	450	196921969	\N
-976	450	188602961	\N
-977	450	650856216	\N
-978	450	603406323	\N
-979	450	613859951	\N
-980	450	393594062	\N
-981	450	288128487	\N
-982	450	123998648	\N
-983	450	939894620	\N
-984	450	147563401	\N
-985	450	903496451	\N
-986	450	251566329	\N
-987	450	283348176	\N
-988	450	317082933	\N
-989	451	818731508	\N
-990	452	818731508	\N
-991	453	818731508	\N
-992	454	818731508	\N
-993	455	818731508	\N
-994	456	818731508	\N
-995	457	818731508	\N
-996	458	818731508	\N
-997	459	818731508	\N
-998	460	818731508	\N
-999	462	764467765	\N
-1000	462	102335231	\N
-1001	462	818731508	\N
-1002	462	731880094	\N
-1003	462	632406555	\N
-1004	462	678188495	\N
-1005	462	981912619	\N
-1006	462	852215460	\N
-1007	462	130224392	\N
-1008	462	577900744	\N
-1009	462	389321721	\N
-1010	462	199710663	\N
-1011	462	683319969	\N
-1012	462	818163599	\N
-1013	462	313922369	\N
-1014	462	900340334	\N
-1015	462	169998861	\N
-1016	462	319384274	\N
-1017	462	941543187	\N
-1018	462	154451252	\N
-1019	462	196921969	\N
-1020	462	188602961	\N
-1021	462	650856216	\N
-1022	462	603406323	\N
-1023	462	613859951	\N
-1024	462	393594062	\N
-1025	462	288128487	\N
-1026	462	123998648	\N
-1027	462	939894620	\N
-1028	462	147563401	\N
-1029	462	903496451	\N
-1030	462	251566329	\N
-1031	462	283348176	\N
-1032	462	357656050	\N
-1033	462	317082933	\N
-1034	463	357656050	\N
-1035	464	357656050	\N
-1036	465	357656050	\N
-1037	466	357656050	\N
-1038	467	357656050	\N
-1039	468	357656050	\N
-1040	469	357656050	\N
-1041	470	357656050	\N
-1042	471	357656050	\N
-1043	472	357656050	\N
-1044	473	357656050	\N
-1045	474	357656050	\N
-1046	475	357656050	\N
-1047	476	357656050	\N
-1048	480	764467765	\N
-1049	480	102335231	\N
-1050	480	818731508	\N
-1051	480	731880094	\N
-1052	480	632406555	\N
-1053	480	678188495	\N
-1054	480	981912619	\N
-1055	480	852215460	\N
-1056	480	130224392	\N
-1057	480	577900744	\N
-1058	480	389321721	\N
-1059	480	199710663	\N
-1060	480	683319969	\N
-1061	480	818163599	\N
-1062	480	313922369	\N
-1063	480	900340334	\N
-1064	480	169998861	\N
-1065	480	319384274	\N
-1066	480	941543187	\N
-1067	480	154451252	\N
-1068	480	196921969	\N
-1069	480	188602961	\N
-1070	480	650856216	\N
-1071	480	603406323	\N
-1072	480	613859951	\N
-1073	480	393594062	\N
-1074	480	288128487	\N
-1075	480	123998648	\N
-1076	480	939894620	\N
-1077	480	147563401	\N
-1078	480	903496451	\N
-1079	480	251566329	\N
-1080	480	283348176	\N
-1081	480	357656050	\N
-1082	480	317082933	\N
-1083	480	430754812	\N
-1084	481	430754812	\N
-1085	482	430754812	\N
-1086	483	430754812	\N
-1087	484	430754812	\N
-1088	485	430754812	\N
-1089	486	430754812	\N
-1090	487	430754812	\N
-1091	488	430754812	\N
-1092	496	764467765	\N
-1093	496	102335231	\N
-1094	496	818731508	\N
-1095	496	731880094	\N
-1096	496	632406555	\N
-1097	496	678188495	\N
-1098	496	981912619	\N
-1099	496	852215460	\N
-1100	496	130224392	\N
-1101	496	577900744	\N
-1102	496	389321721	\N
-1103	496	199710663	\N
-1104	496	683319969	\N
-1105	496	818163599	\N
-1106	496	313922369	\N
-1107	496	900340334	\N
-1108	496	169998861	\N
-1109	496	319384274	\N
-1110	496	941543187	\N
-1111	496	154451252	\N
-1112	496	196921969	\N
-1113	496	188602961	\N
-1114	496	650856216	\N
-1115	496	603406323	\N
-1116	496	613859951	\N
-1117	496	393594062	\N
-1118	496	288128487	\N
-1119	496	123998648	\N
-1120	496	939894620	\N
-1121	496	147563401	\N
-1122	496	903496451	\N
-1123	496	251566329	\N
-1124	496	283348176	\N
-1125	496	357656050	\N
-1126	496	317082933	\N
-1127	496	430754812	\N
-1128	496	619438774	\N
-1129	497	430754812	\N
-1130	497	619438774	\N
-1131	498	619438774	\N
-1132	499	619438774	\N
-1133	500	619438774	\N
-1134	501	619438774	\N
-1135	502	619438774	\N
-1136	503	619438774	\N
-1137	504	619438774	\N
-1138	505	619438774	\N
-1139	506	619438774	\N
-1140	507	619438774	\N
-1141	509	430754812	\N
-1142	509	619438774	\N
-1143	510	430754812	\N
-1144	510	619438774	\N
-1145	511	430754812	\N
-1146	511	619438774	\N
-1147	512	430754812	\N
-1148	512	619438774	\N
-1149	513	764467765	\N
-1150	513	102335231	\N
-1151	513	818731508	\N
-1152	513	731880094	\N
-1153	513	632406555	\N
-1154	513	678188495	\N
-1155	513	981912619	\N
-1156	513	852215460	\N
-1157	513	130224392	\N
-1158	513	577900744	\N
-1159	513	389321721	\N
-1160	513	199710663	\N
-1161	513	683319969	\N
-1162	513	818163599	\N
-1163	513	313922369	\N
-1164	513	900340334	\N
-1165	513	169998861	\N
-1166	513	319384274	\N
-1167	513	941543187	\N
-1168	513	154451252	\N
-1169	513	196921969	\N
-1170	513	188602961	\N
-1171	513	650856216	\N
-1172	513	603406323	\N
-1173	513	613859951	\N
-1174	513	393594062	\N
-1175	513	288128487	\N
-1176	513	123998648	\N
-1177	513	939894620	\N
-1178	513	147563401	\N
-1179	513	903496451	\N
-1180	513	251566329	\N
-1181	513	283348176	\N
-1182	513	357656050	\N
-1183	513	317082933	\N
-1184	513	430754812	\N
-1185	513	619438774	\N
-1186	513	709222489	\N
-1187	514	709222489	\N
-1188	515	709222489	\N
-1189	516	709222489	\N
-1190	517	709222489	\N
-1191	518	709222489	\N
-1192	519	709222489	\N
-1193	520	709222489	\N
-1194	521	709222489	\N
-1195	523	709222489	\N
-1196	525	842999018	\N
-1197	526	842999018	\N
-1198	527	842999018	\N
-1199	528	842999018	\N
-1200	529	842999018	\N
-1201	530	842999018	\N
-1202	531	842999018	\N
-1203	532	842999018	\N
-1204	533	842999018	\N
-1205	535	842999018	\N
-1206	537	764467765	\N
-1207	537	102335231	\N
-1208	537	818731508	\N
-1209	537	731880094	\N
-1210	537	632406555	\N
-1211	537	678188495	\N
-1212	537	981912619	\N
-1213	537	852215460	\N
-1214	537	130224392	\N
-1215	537	577900744	\N
-1216	537	389321721	\N
-1217	537	199710663	\N
-1218	537	683319969	\N
-1219	537	818163599	\N
-1220	537	313922369	\N
-1221	537	900340334	\N
-1222	537	169998861	\N
-1223	537	319384274	\N
-1224	537	941543187	\N
-1225	537	154451252	\N
-1226	537	196921969	\N
-1227	537	188602961	\N
-1228	537	650856216	\N
-1229	537	603406323	\N
-1230	537	613859951	\N
-1231	537	393594062	\N
-1232	537	288128487	\N
-1233	537	123998648	\N
-1234	537	939894620	\N
-1235	537	147563401	\N
-1236	537	903496451	\N
-1237	537	251566329	\N
-1238	537	283348176	\N
-1239	537	357656050	\N
-1240	537	317082933	\N
-1241	537	430754812	\N
-1242	537	619438774	\N
-1243	537	709222489	\N
-1244	537	842999018	\N
-1245	537	717091616	\N
-1246	539	764467765	\N
-1247	539	102335231	\N
-1248	539	818731508	\N
-1249	539	731880094	\N
-1250	539	632406555	\N
-1251	539	678188495	\N
-1252	539	981912619	\N
-1253	539	852215460	\N
-1254	539	130224392	\N
-1255	539	577900744	\N
-1256	539	389321721	\N
-1257	539	199710663	\N
-1258	539	683319969	\N
-1259	539	818163599	\N
-1260	539	313922369	\N
-1261	539	900340334	\N
-1262	539	169998861	\N
-1263	539	319384274	\N
-1264	539	941543187	\N
-1265	539	154451252	\N
-1266	539	196921969	\N
-1267	539	188602961	\N
-1268	539	650856216	\N
-1269	539	603406323	\N
-1270	539	613859951	\N
-1271	539	393594062	\N
-1272	539	288128487	\N
-1273	539	123998648	\N
-1274	539	939894620	\N
-1275	539	147563401	\N
-1276	539	903496451	\N
-1277	539	251566329	\N
-1278	539	283348176	\N
-1279	539	357656050	\N
-1280	539	317082933	\N
-1281	539	430754812	\N
-1282	539	619438774	\N
-1283	539	709222489	\N
-1284	539	842999018	\N
-1285	539	717091616	\N
-1286	540	717091616	\N
-1287	541	717091616	\N
-1288	542	717091616	\N
-1289	543	717091616	\N
-1290	544	717091616	\N
-1291	545	717091616	\N
-1292	546	717091616	\N
-1293	547	717091616	\N
-1294	550	764467765	\N
-1295	550	102335231	\N
-1296	550	818731508	\N
-1297	550	731880094	\N
-1298	550	632406555	\N
-1299	550	678188495	\N
-1300	550	981912619	\N
-1301	550	852215460	\N
-1302	550	130224392	\N
-1303	550	577900744	\N
-1304	550	389321721	\N
-1305	550	199710663	\N
-1306	550	683319969	\N
-1307	550	818163599	\N
-1308	550	313922369	\N
-1309	550	900340334	\N
-1310	550	169998861	\N
-1311	550	319384274	\N
-1312	550	941543187	\N
-1313	550	154451252	\N
-1314	550	196921969	\N
-1315	550	188602961	\N
-1316	550	650856216	\N
-1317	550	603406323	\N
-1318	550	613859951	\N
-1319	550	393594062	\N
-1320	550	288128487	\N
-1321	550	123998648	\N
-1322	550	939894620	\N
-1323	550	147563401	\N
-1324	550	903496451	\N
-1325	550	251566329	\N
-1326	550	283348176	\N
-1327	550	357656050	\N
-1328	550	317082933	\N
-1329	550	430754812	\N
-1330	550	619438774	\N
-1331	550	709222489	\N
-1332	550	842999018	\N
-1333	550	717091616	\N
-1334	551	764467765	\N
-1335	551	102335231	\N
-1336	551	818731508	\N
-1337	551	852215460	\N
-1338	551	577900744	\N
-1339	551	199710663	\N
-1340	551	683319969	\N
-1341	551	288128487	\N
-1342	551	123998648	\N
-1343	551	939894620	\N
-1344	551	357656050	\N
-1345	551	842999018	\N
-1346	552	764467765	\N
-1347	553	764467765	\N
-1348	554	764467765	\N
-1349	554	731880094	\N
-1350	554	632406555	\N
-1351	554	188602961	\N
-1352	554	613859951	\N
-1353	555	632406555	\N
-1354	556	632406555	\N
-1355	557	632406555	\N
-1356	558	632406555	\N
-1357	560	632406555	\N
-1358	561	632406555	\N
-1359	562	632406555	\N
-1360	563	632406555	\N
-1361	573	764467765	\N
-1362	573	102335231	\N
-1363	573	818731508	\N
-1364	573	731880094	\N
-1365	573	632406555	\N
-1366	573	678188495	\N
-1367	573	981912619	\N
-1368	573	852215460	\N
-1369	573	130224392	\N
-1370	573	577900744	\N
-1371	573	389321721	\N
-1372	573	199710663	\N
-1373	573	683319969	\N
-1374	573	818163599	\N
-1375	573	313922369	\N
-1376	573	900340334	\N
-1377	573	169998861	\N
-1378	573	319384274	\N
-1379	573	941543187	\N
-1380	573	154451252	\N
-1381	573	196921969	\N
-1382	573	188602961	\N
-1383	573	650856216	\N
-1384	573	603406323	\N
-1385	573	613859951	\N
-1386	573	393594062	\N
-1387	573	288128487	\N
-1388	573	123998648	\N
-1389	573	939894620	\N
-1390	573	147563401	\N
-1391	573	903496451	\N
-1392	573	251566329	\N
-1393	573	283348176	\N
-1394	573	357656050	\N
-1395	573	317082933	\N
-1396	573	430754812	\N
-1397	573	619438774	\N
-1398	573	709222489	\N
-1399	573	842999018	\N
-1400	573	717091616	\N
-1401	575	130224392	\N
-1402	575	283348176	\N
-1403	575	317082933	\N
-1404	576	717091616	\N
-1405	577	717091616	\N
-1406	579	198210769	\N
-1407	580	198210769	\N
-1408	581	198210769	\N
-1409	582	198210769	\N
-1410	583	198210769	\N
-1411	584	198210769	\N
-1412	585	198210769	\N
-1413	586	198210769	\N
-1414	587	198210769	\N
-1415	588	198210769	\N
-1416	590	222421165	\N
-1417	591	222421165	\N
-1418	592	222421165	\N
-1419	593	222421165	\N
-1420	594	222421165	\N
-1421	595	222421165	\N
-1422	596	222421165	\N
-1423	597	222421165	\N
-1424	598	222421165	\N
-1425	599	222421165	\N
-1426	600	222421165	\N
-1427	602	532194382	\N
-1428	603	532194382	\N
-1429	604	532194382	\N
-1430	605	532194382	\N
-1431	606	532194382	\N
-1432	607	532194382	\N
-1433	608	532194382	\N
-1434	609	532194382	\N
-1435	610	532194382	\N
-1436	612	842999018	\N
-1437	612	249629085	\N
-1438	613	249629085	\N
-1439	614	249629085	\N
-1440	615	249629085	\N
-1441	616	249629085	\N
-1442	617	249629085	\N
-1443	618	249629085	\N
-1444	619	249629085	\N
-1445	620	249629085	\N
-1446	626	249629085	\N
-1447	628	411146676	\N
-1448	629	411146676	\N
-1449	630	411146676	\N
-1450	631	411146676	\N
-1451	632	411146676	\N
-1452	633	411146676	\N
-1453	634	411146676	\N
-1454	635	411146676	\N
-1455	636	411146676	\N
-1456	640	172615160	\N
-1457	641	172615160	\N
-1458	642	172615160	\N
-1459	643	172615160	\N
-1460	644	172615160	\N
-1461	645	172615160	\N
-1462	646	172615160	\N
-1463	647	172615160	\N
-1464	648	172615160	\N
-1465	656	764467765	\N
-1466	656	102335231	\N
-1467	656	818731508	\N
-1468	656	731880094	\N
-1469	656	632406555	\N
-1470	656	678188495	\N
-1471	656	981912619	\N
-1472	656	852215460	\N
-1473	656	130224392	\N
-1474	656	577900744	\N
-1475	656	389321721	\N
-1476	656	199710663	\N
-1477	656	683319969	\N
-1478	656	818163599	\N
-1479	656	313922369	\N
-1480	656	900340334	\N
-1481	656	169998861	\N
-1482	656	319384274	\N
-1483	656	941543187	\N
-1484	656	154451252	\N
-1485	656	196921969	\N
-1486	656	188602961	\N
-1487	656	650856216	\N
-1488	656	603406323	\N
-1489	656	613859951	\N
-1490	656	393594062	\N
-1491	656	288128487	\N
-1492	656	123998648	\N
-1493	656	939894620	\N
-1494	656	147563401	\N
-1495	656	903496451	\N
-1496	656	251566329	\N
-1497	656	283348176	\N
-1498	656	357656050	\N
-1499	656	317082933	\N
-1500	656	430754812	\N
-1501	656	619438774	\N
-1502	656	709222489	\N
-1503	656	842999018	\N
-1504	656	717091616	\N
-1505	656	198210769	\N
-1506	656	222421165	\N
-1507	656	532194382	\N
-1508	656	249629085	\N
-1509	656	411146676	\N
-1510	656	172615160	\N
-1511	662	764467765	\N
-1512	662	102335231	\N
-1513	662	818731508	\N
-1514	662	731880094	\N
-1515	662	632406555	\N
-1516	662	678188495	\N
-1517	662	981912619	\N
-1518	662	852215460	\N
-1519	662	130224392	\N
-1520	662	577900744	\N
-1521	662	389321721	\N
-1522	662	199710663	\N
-1523	662	683319969	\N
-1524	662	818163599	\N
-1525	662	313922369	\N
-1526	662	900340334	\N
-1527	662	169998861	\N
-1528	662	319384274	\N
-1529	662	941543187	\N
-1530	662	154451252	\N
-1531	662	196921969	\N
-1532	662	188602961	\N
-1533	662	650856216	\N
-1534	662	603406323	\N
-1535	662	613859951	\N
-1536	662	393594062	\N
-1537	662	288128487	\N
-1538	662	123998648	\N
-1539	662	939894620	\N
-1540	662	147563401	\N
-1541	662	903496451	\N
-1542	662	251566329	\N
-1543	662	283348176	\N
-1544	662	357656050	\N
-1545	662	317082933	\N
-1546	662	430754812	\N
-1547	662	619438774	\N
-1548	662	709222489	\N
-1549	662	842999018	\N
-1550	662	717091616	\N
-1551	662	198210769	\N
-1552	662	222421165	\N
-1553	662	532194382	\N
-1554	662	249629085	\N
-1555	662	411146676	\N
-1556	662	172615160	\N
-1557	664	100621249	\N
-1558	665	100621249	\N
-1559	666	100621249	\N
-1560	667	100621249	\N
-1561	668	100621249	\N
-1562	669	100621249	\N
-1563	670	100621249	\N
-1564	671	100621249	\N
-1565	672	100621249	\N
-1566	673	100621249	\N
-1567	674	100621249	\N
-1568	676	878012805	\N
-1569	677	878012805	\N
-1570	678	878012805	\N
-1571	679	878012805	\N
-1572	680	878012805	\N
-1573	681	878012805	\N
-1574	682	878012805	\N
-1575	683	878012805	\N
-1576	684	878012805	\N
-1577	685	878012805	\N
-1578	687	225829605	\N
-1579	688	225829605	\N
-1580	689	225829605	\N
-1581	690	225829605	\N
-1582	691	225829605	\N
-1583	692	225829605	\N
-1584	693	225829605	\N
-1585	694	225829605	\N
-1586	695	225829605	\N
-1587	696	225829605	\N
-1588	700	258122542	\N
-1589	701	258122542	\N
-1590	702	258122542	\N
-1591	703	258122542	\N
-1592	704	258122542	\N
-1593	705	258122542	\N
-1594	706	258122542	\N
-1595	707	258122542	\N
-1596	708	258122542	\N
-1597	709	258122542	\N
-1598	711	448520587	\N
-1599	712	448520587	\N
-1600	713	448520587	\N
-1601	714	448520587	\N
-1602	715	448520587	\N
-1603	716	448520587	\N
-1604	717	448520587	\N
-1605	718	448520587	\N
-1606	719	448520587	\N
-1607	720	448520587	\N
-1608	721	448520587	\N
-1609	723	194783596	\N
-1610	724	194783596	\N
-1611	725	194783596	\N
-1612	726	194783596	\N
-1613	727	194783596	\N
-1614	728	194783596	\N
-1615	729	194783596	\N
-1616	730	194783596	\N
-1617	731	194783596	\N
-1618	732	194783596	\N
-1619	734	277621360	\N
-1620	735	277621360	\N
-1621	736	277621360	\N
-1622	737	277621360	\N
-1623	738	277621360	\N
-1624	739	277621360	\N
-1625	740	277621360	\N
-1626	741	277621360	\N
-1627	742	277621360	\N
-1628	743	277621360	\N
-1629	745	110069930	\N
-1630	746	110069930	\N
-1631	747	110069930	\N
-1632	748	110069930	\N
-1633	749	110069930	\N
-1634	750	110069930	\N
-1635	751	110069930	\N
-1636	752	110069930	\N
-1637	753	110069930	\N
-1638	754	110069930	\N
-1639	756	291816949	\N
-1640	757	291816949	\N
-1641	758	291816949	\N
-1642	759	291816949	\N
-1643	760	291816949	\N
-1644	761	291816949	\N
-1645	762	291816949	\N
-1646	763	291816949	\N
-1647	764	291816949	\N
-1648	765	291816949	\N
-1649	767	915914130	\N
-1650	768	915914130	\N
-1651	769	915914130	\N
-1652	770	915914130	\N
-1653	771	915914130	\N
-1654	772	915914130	\N
-1655	773	915914130	\N
-1656	774	915914130	\N
-1657	775	915914130	\N
-1658	776	915914130	\N
-1659	778	138546187	\N
-1660	779	138546187	\N
-1661	780	138546187	\N
-1662	781	138546187	\N
-1663	782	138546187	\N
-1664	783	138546187	\N
-1665	784	138546187	\N
-1666	785	138546187	\N
-1667	786	138546187	\N
-1668	787	138546187	\N
-1669	789	700193747	\N
-1670	790	700193747	\N
-1671	791	700193747	\N
-1672	792	700193747	\N
-1673	793	700193747	\N
-1674	794	700193747	\N
-1675	795	700193747	\N
-1676	796	700193747	\N
-1677	797	700193747	\N
-1678	798	700193747	\N
-1679	799	700193747	\N
-1680	801	426729010	\N
-1681	802	426729010	\N
-1682	803	426729010	\N
-1683	804	426729010	\N
-1684	805	426729010	\N
-1685	806	426729010	\N
-1686	807	426729010	\N
-1687	808	426729010	\N
-1688	809	426729010	\N
-1689	810	426729010	\N
-1690	812	554468902	\N
-1691	813	554468902	\N
-1692	814	554468902	\N
-1693	815	554468902	\N
-1694	816	554468902	\N
-1695	817	554468902	\N
-1696	818	554468902	\N
-1697	819	554468902	\N
-1698	820	554468902	\N
-1699	821	554468902	\N
-1700	823	764181133	\N
-1701	824	764181133	\N
-1702	825	764181133	\N
-1703	826	764181133	\N
-1704	827	764181133	\N
-1705	828	764181133	\N
-1706	829	764181133	\N
-1707	830	764181133	\N
-1708	831	764181133	\N
-1709	832	764181133	\N
-1710	834	276730794	\N
-1711	835	276730794	\N
-1712	836	276730794	\N
-1713	837	276730794	\N
-1714	838	276730794	\N
-1715	839	276730794	\N
-1716	840	276730794	\N
-1717	841	276730794	\N
-1718	842	276730794	\N
+1719	843	128235611	\N
+1720	844	128235611	\N
+1721	845	212763672	\N
+1722	846	212763672	\N
+1723	847	212763672	\N
+1724	848	212763672	\N
+1725	849	212763672	\N
+1726	850	212763672	\N
+1727	851	212763672	\N
+1728	852	212763672	\N
+1729	856	212763672	\N
+1730	865	212763672	\N
+1731	866	212763672	\N
+1732	867	212763672	\N
+1733	874	105283367	\N
+1734	875	105283367	\N
+1735	876	105283367	\N
+1736	879	105283367	\N
+1737	880	105283367	\N
+1738	883	105283367	\N
+1739	884	105283367	\N
+1740	885	105283367	\N
+1741	888	128235611	\N
+1742	889	128235611	\N
+1743	890	128235611	\N
+1744	891	128235611	\N
+1745	893	128235611	\N
+1746	894	128235611	\N
+1747	895	212763672	\N
+1748	896	212763672	\N
+1749	899	212763672	\N
+1750	900	212763672	\N
+1751	901	212763672	\N
+1752	902	212763672	\N
+1753	903	212763672	\N
+1754	904	212763672	\N
+1755	905	212763672	\N
+1756	913	231444323	\N
+1757	914	231444323	\N
+1758	915	231444323	\N
+1759	916	231444323	\N
+1760	917	231444323	\N
+1761	918	231444323	\N
+1762	919	231444323	\N
+1763	920	231444323	\N
+1764	921	231444323	\N
+1765	922	231444323	\N
+1766	923	231444323	\N
+1767	926	231444323	\N
+1768	927	231444323	\N
+1769	928	231444323	\N
+1770	929	231444323	\N
+1771	930	231444323	\N
+1772	931	231444323	\N
+1773	932	231444323	\N
+1774	933	231444323	\N
+1775	947	212763672	\N
+1776	948	212763672	\N
+1777	949	212763672	\N
+1778	950	212763672	\N
+1779	951	212763672	\N
+1780	952	212763672	\N
+1781	953	212763672	\N
+1782	958	128235611	\N
+1783	959	128235611	\N
+1784	960	128235611	\N
+1785	961	128235611	\N
+1786	962	128235611	\N
+1787	963	128235611	\N
+1788	964	128235611	\N
+1789	972	128235611	\N
+1790	975	128235611	\N
+1791	976	128235611	\N
+1792	977	128235611	\N
+1793	978	128235611	\N
+1794	979	128235611	\N
+1795	980	128235611	\N
+1796	981	128235611	\N
+1797	984	128235611	\N
+1798	987	212763672	\N
+1799	988	212763672	\N
+1800	989	212763672	\N
+1801	990	212763672	\N
+1802	991	212763672	\N
+1803	992	212763672	\N
+1804	993	212763672	\N
+1805	994	212763672	\N
+1806	995	212763672	\N
+1807	997	212763672	\N
+1808	1000	212763672	\N
+1809	1001	212763672	\N
+1810	1002	212763672	\N
+1811	1003	212763672	\N
+1812	1004	212763672	\N
+1813	1005	212763672	\N
+1814	1006	212763672	\N
+1815	1013	128235611	\N
+1816	1014	128235611	\N
+1817	1015	128235611	\N
+1818	1016	128235611	\N
+1819	1017	128235611	\N
+1820	1018	128235611	\N
+1821	1019	128235611	\N
+1822	1020	128235611	\N
+1823	1021	128235611	\N
+1824	1022	128235611	\N
+1825	1023	128235611	\N
+1826	1024	128235611	\N
+1827	1025	128235611	\N
+1828	1026	128235611	\N
+1829	1027	128235611	\N
+1830	1028	128235611	\N
+1831	1029	128235611	\N
+1832	1030	128235611	\N
+1833	1031	128235611	\N
+1834	1033	212763672	\N
+1835	1041	105283367	\N
+1836	1042	105283367	\N
+1837	1047	231444323	\N
+1838	1048	231444323	\N
+1839	1049	231444323	\N
+1840	1050	231444323	\N
+1841	1051	231444323	\N
+1842	1052	231444323	\N
+1843	1053	231444323	\N
+1844	1056	231444323	\N
+1845	1057	231444323	\N
+1846	1058	231444323	\N
+1847	1059	231444323	\N
+1848	1060	231444323	\N
+1849	1061	231444323	\N
+1850	1062	231444323	\N
+1851	1063	231444323	\N
+1852	1064	231444323	\N
+1853	1065	231444323	\N
+1854	1066	231444323	\N
+1855	1067	231444323	\N
+1856	1068	231444323	\N
+1857	1069	231444323	\N
+1858	1070	231444323	\N
+1859	1071	231444323	\N
+1860	1072	231444323	\N
+1861	1075	128235611	\N
+1862	1076	128235611	\N
+1863	1079	128235611	\N
+1864	1080	128235611	\N
+1865	1081	128235611	\N
+1866	1082	128235611	\N
+1867	1083	128235611	\N
+1868	1084	128235611	\N
+1869	1085	128235611	\N
+1870	1088	618203196	\N
+1871	1089	618203196	\N
+1872	1090	618203196	\N
+1873	1091	618203196	\N
+1874	1092	618203196	\N
+1875	1093	618203196	\N
+1876	1094	618203196	\N
+1877	1095	618203196	\N
+1878	1098	128235611	\N
+1879	1099	128235611	\N
+1880	1102	105283367	\N
+1881	1103	105283367	\N
+1882	1106	618203196	\N
+1883	1107	618203196	\N
+1884	1110	212763672	\N
+1885	1111	212763672	\N
+1886	1116	212763672	\N
+1887	1117	212763672	\N
+1888	1118	212763672	\N
+1889	1119	212763672	\N
+1890	1120	212763672	\N
+1891	1121	212763672	\N
+1892	1122	212763672	\N
+1893	1123	212763672	\N
+1894	1124	212763672	\N
+1895	1125	212763672	\N
+1896	1126	212763672	\N
+1897	1127	212763672	\N
+1898	1128	212763672	\N
+1899	1129	212763672	\N
+1900	1132	212763672	\N
+1901	1133	212763672	\N
+1902	1134	212763672	\N
+1903	1135	212763672	\N
+1904	1136	212763672	\N
+1905	1139	128235611	\N
+1906	1140	128235611	\N
+1907	1141	128235611	\N
+1908	1142	128235611	\N
+1909	1143	128235611	\N
+1910	1144	128235611	\N
+1911	1145	128235611	\N
+1912	1146	128235611	\N
+1913	1147	128235611	\N
+1914	1148	128235611	\N
+1915	1149	212763672	\N
+1916	1150	212763672	\N
+1917	1151	105283367	\N
+1918	1152	105283367	\N
+1919	1153	105283367	\N
+1920	1154	105283367	\N
+1921	1155	105283367	\N
+1922	1156	105283367	\N
+1923	1157	105283367	\N
+1924	1158	105283367	\N
+1925	1177	128235611	\N
+1926	1178	128235611	\N
+1927	1179	128235611	\N
+1928	1180	128235611	\N
+1929	1181	128235611	\N
+1930	1182	128235611	\N
+1931	1183	128235611	\N
+1932	1184	128235611	\N
+1933	1185	128235611	\N
+1934	1191	618203196	\N
+1935	1192	618203196	\N
+1936	1193	618203196	\N
+1937	1194	618203196	\N
+1938	1195	618203196	\N
+1939	1196	618203196	\N
+1940	1197	618203196	\N
+1941	1198	618203196	\N
+1942	1199	128235611	\N
+1943	1200	128235611	\N
+1944	1201	128235611	\N
+1945	1202	128235611	\N
+1946	1203	128235611	\N
+1947	1204	128235611	\N
+1948	1205	128235611	\N
+1949	1206	128235611	\N
+1950	1207	128235611	\N
+1951	1208	128235611	\N
+1952	1209	128235611	\N
+1953	1210	128235611	\N
+1954	1211	128235611	\N
+1955	1212	128235611	\N
+1956	1213	128235611	\N
+1957	1214	128235611	\N
+1958	1215	128235611	\N
+1959	1216	128235611	\N
+1960	1219	618203196	\N
+1961	1220	618203196	\N
+1962	1221	618203196	\N
+1963	1222	618203196	\N
+1964	1223	618203196	\N
+1965	1224	618203196	\N
+1966	1225	618203196	\N
+1967	1226	618203196	\N
+1968	1229	399608982	\N
+1969	1230	399608982	\N
+1970	1231	399608982	\N
+1971	1232	399608982	\N
+1972	1233	399608982	\N
+1973	1234	399608982	\N
+1974	1235	399608982	\N
+1975	1236	399608982	\N
+1976	1237	399608982	\N
+1977	1240	380428614	\N
+1978	1241	380428614	\N
+1979	1242	380428614	\N
+1980	1243	380428614	\N
+1981	1244	380428614	\N
+1982	1245	380428614	\N
+1983	1246	380428614	\N
+1984	1247	380428614	\N
+1985	1248	618203196	\N
+1986	1251	399608982	\N
+1987	1252	399608982	\N
+1988	1255	128235611	\N
+1989	1256	128235611	\N
+1990	1259	380428614	\N
+1991	1260	380428614	\N
+1992	1265	128235611	\N
+1993	1266	128235611	\N
+1994	1267	128235611	\N
+1995	1270	128235611	\N
+1996	1271	128235611	\N
+1997	1272	128235611	\N
+1998	1273	128235611	\N
+1999	1274	128235611	\N
+2000	1275	128235611	\N
+2001	1276	128235611	\N
+2002	1277	128235611	\N
+2003	1280	128235611	\N
+2004	1281	128235611	\N
+2005	1282	128235611	\N
+2006	1283	128235611	\N
+2007	1284	128235611	\N
+2008	1285	128235611	\N
+2009	1286	128235611	\N
+2010	1294	380428614	\N
+2011	1295	380428614	\N
+2012	1296	380428614	\N
+2013	1297	380428614	\N
+2014	1298	380428614	\N
+2015	1299	380428614	\N
+2016	1300	380428614	\N
+2017	1301	380428614	\N
+2018	1302	380428614	\N
+2019	1305	380428614	\N
+2020	1306	380428614	\N
+2021	1307	380428614	\N
+2022	1308	380428614	\N
+2023	1309	380428614	\N
+2024	1310	380428614	\N
+2025	1311	380428614	\N
+2026	1317	399608982	\N
+2027	1318	399608982	\N
+2028	1319	399608982	\N
+2029	1320	399608982	\N
+2030	1321	399608982	\N
+2031	1322	399608982	\N
+2032	1323	399608982	\N
+2033	1324	399608982	\N
+2034	1325	399608982	\N
+2035	1341	399608982	\N
+2036	1342	399608982	\N
+2037	1343	399608982	\N
+2038	1344	399608982	\N
+2039	1345	399608982	\N
+2040	1346	399608982	\N
+2041	1347	399608982	\N
+2042	1348	399608982	\N
+2043	1349	399608982	\N
+2044	1372	399608982	\N
+2045	1373	399608982	\N
+2046	1374	399608982	\N
+2047	1375	399608982	\N
+2048	1376	399608982	\N
+2049	1395	618203196	\N
+2050	1396	618203196	\N
+2051	1397	618203196	\N
+2052	1398	618203196	\N
+2053	1399	618203196	\N
+2054	1400	618203196	\N
+2055	1401	618203196	\N
+2056	1402	618203196	\N
+2057	1411	105283367	\N
+2058	1412	105283367	\N
+2059	1413	105283367	\N
+2060	1414	105283367	\N
+2061	1415	105283367	\N
+2062	1416	105283367	\N
+2063	1417	105283367	\N
+2064	1418	105283367	\N
+2065	1420	105283367	\N
+2066	1423	231444323	\N
+2067	1424	231444323	\N
+2068	1425	231444323	\N
+2069	1426	231444323	\N
+2070	1427	231444323	\N
+2071	1428	231444323	\N
+2072	1429	231444323	\N
+2073	1430	231444323	\N
 \.
 
 
@@ -3088,848 +1629,604 @@ COPY hipaa_audit_mrns (id, view_id, mrn, modified_date) FROM stdin;
 --
 
 COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, modified_date) FROM stdin;
-1	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-21 09:54:50-05
-2	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-21 09:54:51-05
-3	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-21 09:57:13-05
-4	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-09-21 09:57:20-05
-5	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=7	2010-09-21 09:57:24-05
-6	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-09-21 09:57:25-05
-7	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart	2010-09-21 09:57:33-05
-8	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2010-09-21 09:57:35-05
-9	0:0:0:0:0:0:0:1	mwarnock	/exams/empty_cart	2010-09-21 09:57:39-05
-10	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-09-21 09:57:40-05
-11	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-09-21 09:58:53-05
-12	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-09-21 13:18:03-05
-13	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-21 13:18:04-05
-14	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-09-21 13:18:07-05
-15	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=10	2010-09-21 13:18:11-05
-16	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id	2010-09-21 13:18:17-05
-17	0:0:0:0:0:0:0:1	mwarnock	/exams?print_id=true	2010-09-21 13:18:18-05
-18	0:0:0:0:0:0:0:1	mwarnock	/patients/print_rsna_id	2010-09-21 13:18:20-05
-19	0:0:0:0:0:0:0:1	wtellis	/	2010-09-21 13:29:28-05
-20	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-09-21 13:30:28-05
-21	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-21 13:30:28-05
-22	0:0:0:0:0:0:0:1	wtellis	/	2010-09-21 13:51:36-05
-23	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-21 13:51:40-05
-24	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=7	2010-09-21 13:51:45-05
-25	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-21 13:51:46-05
-26	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-21 13:51:51-05
-27	0:0:0:0:0:0:0:1	admin	/	2010-09-21 14:00:35-05
-28	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-21 14:25:43-05
-29	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-21 14:25:47-05
-30	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-21 14:25:48-05
-31	0:0:0:0:0:0:0:1	wtellis	/	2010-09-21 17:29:09-05
-32	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-21 17:29:14-05
-33	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=16	2010-09-21 17:29:20-05
-34	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-09-21 17:29:42-05
-35	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-09-21 17:29:42-05
-36	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-09-21 17:29:44-05
-37	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-21 17:33:44-05
-38	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-21 17:33:47-05
-39	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-21 17:33:51-05
-40	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-21 17:33:52-05
-41	0:0:0:0:0:0:0:1	wtellis	/	2010-09-23 11:21:48-05
-42	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-23 11:21:55-05
-43	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-09-23 11:22:12-05
-44	0:0:0:0:0:0:0:1	wtellis	/	2010-09-23 11:22:12-05
-45	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-23 11:22:22-05
-46	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=7	2010-09-23 11:22:34-05
-47	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-23 11:22:35-05
-48	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-23 11:33:54-05
-49	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-09-23 11:33:59-05
-50	0:0:0:0:0:0:0:1	wtellis	/	2010-09-23 11:34:00-05
-51	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-23 11:34:04-05
-52	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=7	2010-09-23 11:34:25-05
-53	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-23 11:34:26-05
-54	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-23 11:34:44-05
-55	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-23 11:34:48-05
-56	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-09-23 11:35:12-05
-57	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-23 11:35:35-05
-58	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-23 11:35:35-05
-59	0:0:0:0:0:0:0:1	wtellis	/	2010-09-24 11:17:00-05
-60	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-24 11:17:04-05
-61	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=18	2010-09-24 11:17:10-05
-62	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-09-24 11:17:22-05
-63	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-09-24 11:17:35-05
-64	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-09-24 11:17:36-05
-65	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-09-24 11:17:37-05
-66	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-24 11:20:46-05
-67	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-24 11:20:48-05
-68	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-24 11:20:55-05
-69	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 11:20:56-05
-70	0:0:0:0:0:0:0:1	wtellis	/	2010-09-24 12:56:15-05
-71	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-24 12:56:19-05
-72	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=20	2010-09-24 12:56:24-05
-73	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-09-24 12:56:31-05
-74	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-09-24 12:56:32-05
-75	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-09-24 12:56:34-05
-76	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-24 12:56:40-05
-77	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-24 12:56:44-05
-78	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-24 12:56:50-05
-79	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 12:56:51-05
-80	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-24 13:02:17-05
-81	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 13:02:23-05
-82	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-09-24 13:02:28-05
-83	0:0:0:0:0:0:0:1	wtellis	/	2010-09-24 13:02:29-05
-84	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-24 13:02:32-05
-85	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=19	2010-09-24 13:02:37-05
-86	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-09-24 13:02:46-05
-87	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-09-24 13:02:47-05
-88	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-09-24 13:02:49-05
-89	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-24 13:02:56-05
-90	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-24 13:02:58-05
-91	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-24 13:03:03-05
-92	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 13:03:03-05
-93	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-24 13:03:57-05
-94	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 13:04:01-05
-95	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-09-24 13:05:12-05
-96	0:0:0:0:0:0:0:1	wtellis	/	2010-09-24 13:05:12-05
-97	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-24 13:05:17-05
-98	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=7	2010-09-24 13:05:32-05
-99	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 13:05:32-05
-100	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-24 13:05:37-05
-101	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-24 13:05:40-05
-102	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-24 13:05:45-05
-103	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 13:05:46-05
-104	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-24 13:06:05-05
-105	0:0:0:0:0:0:0:1	wtellis	/	2010-09-28 08:45:07-05
-106	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-28 08:45:12-05
-107	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=7	2010-09-28 08:45:33-05
-108	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 08:45:35-05
-109	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-28 08:45:39-05
-110	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-28 08:45:42-05
-111	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-28 08:45:47-05
-112	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 08:45:48-05
-113	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 08:46:01-05
-114	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 12:33:05-05
-115	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 12:33:39-05
-116	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-09-28 12:33:43-05
-117	0:0:0:0:0:0:0:1	wtellis	/	2010-09-28 12:33:44-05
-118	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-28 12:33:50-05
-119	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-28 13:12:35-05
-120	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-09-28 13:12:40-05
-121	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=7	2010-09-28 13:12:44-05
-122	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-09-28 13:12:44-05
-123	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-09-28 13:12:50-05
-124	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-28 13:14:13-05
-125	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-09-28 13:14:21-05
-126	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-09-28 13:14:35-05
-127	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-28 13:14:36-05
-128	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-09-28 13:14:43-05
-129	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=7	2010-09-28 13:14:46-05
-130	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-09-28 13:14:47-05
-131	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart	2010-09-28 13:14:51-05
-132	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2010-09-28 13:14:53-05
-133	0:0:0:0:0:0:0:1	mwarnock	/exams/empty_cart	2010-09-28 13:14:56-05
-134	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-09-28 13:14:57-05
-135	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-09-28 13:15:07-05
-136	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-28 13:15:07-05
-137	0:0:0:0:0:0:0:1	wtellis	/	2010-09-28 13:28:53-05
-138	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-28 13:28:58-05
-139	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-09-28 13:29:39-05
-140	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=22	2010-09-28 13:31:50-05
-141	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-09-28 13:32:06-05
-142	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-09-28 13:32:07-05
-143	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-09-28 13:32:10-05
-144	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-09-28 13:33:05-05
-145	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-09-28 13:33:11-05
-146	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-09-28 13:33:18-05
-147	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 13:33:21-05
-148	0:0:0:0:0:0:0:1	wtellis	/exams	2010-09-28 13:34:21-05
-149	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-09-28 13:35:36-05
-150	0:0:0:0:0:0:0:1	wtellis	/	2010-09-28 13:43:37-05
-151	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-09-28 13:45:30-05
-152	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-09-28 13:45:49-05
-153	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-09-28 13:46:43-05
-154	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-09-28 14:36:29-05
-155	0:0:0:0:0:0:0:1	mwarnock	/	2010-09-28 14:36:29-05
-156	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-09-28 14:36:42-05
-157	0:0:0:0:0:0:0:1	admin	/	2010-09-30 14:04:06-05
-158	0:0:0:0:0:0:0:1	wtellis	/	2010-10-04 17:13:40-05
-159	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-10-04 17:15:21-05
-160	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=22	2010-10-04 17:15:33-05
-161	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-04 17:15:34-05
-162	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-10-04 17:16:08-05
-163	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-10-04 17:16:29-05
-164	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-10-04 17:16:29-05
-165	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-04 17:16:30-05
-166	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-04 17:16:39-05
-167	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-10-04 17:16:44-05
-168	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-04 17:16:48-05
-169	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-04 17:16:52-05
-170	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-04 17:16:53-05
-171	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-04 17:17:00-05
-172	0:0:0:0:0:0:0:1	wtellis	/	2010-10-04 17:17:01-05
-173	0:0:0:0:0:0:0:1	wtellis	/patients/search	2010-10-04 17:17:08-05
-174	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=31	2010-10-04 17:17:18-05
-175	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-04 17:17:25-05
-176	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-04 17:17:26-05
-177	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart	2010-10-04 17:17:43-05
-178	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-04 17:17:46-05
-179	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-04 17:17:52-05
-180	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-04 17:17:53-05
-181	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:05:33-05
-182	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:29:03-05
-183	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:29:09-05
-184	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:30:33-05
-185	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:30:45-05
-186	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:30:50-05
-187	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:33:24-05
-188	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:33:29-05
-189	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:33:57-05
-190	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:34:01-05
-191	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:44:08-05
-192	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:44:13-05
-193	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:45:54-05
-194	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:46:06-05
-195	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:46:25-05
-196	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:46:30-05
-197	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:48:48-05
-198	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:48:52-05
-199	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:50:00-05
-200	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:50:05-05
-201	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-06 09:52:04-05
-491	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 12:14:07-05
-202	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:52:08-05
-203	0:0:0:0:0:0:0:1	mwarnock	/patients/search	2010-10-06 09:54:01-05
-204	0:0:0:0:0:0:0:1	admin	/	2010-10-06 11:24:35-05
-205	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 01:23:36-05
-206	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-11 01:23:44-05
-207	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=26&commit=Yes	2010-10-11 01:23:54-05
-208	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id	2010-10-11 01:24:03-05
-209	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id	2010-10-11 01:24:10-05
-210	0:0:0:0:0:0:0:1	mwarnock	/exams?print_id=true	2010-10-11 01:24:11-05
-211	0:0:0:0:0:0:0:1	mwarnock	/patients/print_rsna_id	2010-10-11 01:24:12-05
-212	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=26	2010-10-11 01:24:22-05
-213	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2010-10-11 01:24:25-05
-214	0:0:0:0:0:0:0:1	mwarnock	/exams/empty_cart	2010-10-11 01:24:52-05
-215	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-10-11 01:24:53-05
-216	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-11 01:25:13-05
-217	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14496	2010-10-11 01:25:19-05
-218	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 01:42:27-05
-219	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-11 01:42:54-05
-220	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=20&commit=Yes	2010-10-11 01:43:29-05
-221	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-10-11 01:43:30-05
-222	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=20	2010-10-11 01:43:34-05
-223	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2010-10-11 01:43:35-05
-224	0:0:0:0:0:0:0:1	mwarnock	/exams/delete_from_cart?id=20	2010-10-11 01:43:38-05
-225	0:0:0:0:0:0:0:1	mwarnock	/exams/empty_cart	2010-10-11 01:43:41-05
-226	0:0:0:0:0:0:0:1	mwarnock	/exams	2010-10-11 01:43:42-05
-227	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-11 01:43:48-05
-228	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14498	2010-10-11 01:43:50-05
-229	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-11 01:44:24-05
-230	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-11 01:44:40-05
-231	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 01:44:40-05
-232	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-11 01:44:42-05
-233	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:07:59-05
-234	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-11 10:08:09-05
-235	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14498	2010-10-11 10:08:12-05
-236	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14497	2010-10-11 10:08:45-05
-237	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-11 10:09:04-05
-238	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:09:05-05
-239	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-11 10:09:07-05
-240	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id?patient_id=23&commit=Yes	2010-10-11 10:09:17-05
-241	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id	2010-10-11 10:09:43-05
-242	0:0:0:0:0:0:0:1	mwarnock	/patients/create_rsna_id	2010-10-11 10:09:57-05
-243	0:0:0:0:0:0:0:1	mwarnock	/exams?print_id=true	2010-10-11 10:09:58-05
-244	0:0:0:0:0:0:0:1	mwarnock	/patients/print_rsna_id	2010-10-11 10:09:59-05
-245	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-11 10:11:24-05
-246	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14498	2010-10-11 10:11:27-05
-247	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14419	2010-10-11 10:11:57-05
-248	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14421	2010-10-11 10:12:11-05
-249	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14498	2010-10-11 10:12:21-05
-250	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-11 10:12:59-05
-251	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:12:59-05
-252	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-11 10:14:32-05
-253	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:19:26-05
-254	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-11 10:19:40-05
-255	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:19:40-05
-256	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-11 10:19:43-05
-257	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:19:43-05
-258	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-11 10:19:49-05
-259	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:19:50-05
-260	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-11 10:21:10-05
-261	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-11 10:21:15-05
-262	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14498	2010-10-11 10:32:23-05
-263	0:0:0:0:0:0:0:1	wtellis	/	2010-10-11 13:19:44-05
-264	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test	2010-10-11 13:19:51-05
-265	0:0:0:0:0:0:0:1	wtellis	/	2010-10-11 13:20:41-05
-266	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test	2010-10-11 13:20:45-05
-267	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=37&commit=Yes	2010-10-11 13:21:14-05
-268	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-11 13:21:32-05
-269	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-11 13:21:33-05
-270	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-11 13:21:34-05
-271	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=37	2010-10-11 13:21:48-05
-272	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-11 13:21:52-05
-273	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 09:36:10-05
-274	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 09:36:25-05
-275	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 09:38:49-05
-276	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 09:39:18-05
-277	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 09:41:31-05
-278	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 09:41:32-05
-279	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 09:55:25-05
-280	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=wed	2010-10-13 09:55:52-05
-281	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id?patient_id=42&commit=Yes	2010-10-13 09:56:21-05
-282	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id	2010-10-13 09:57:22-05
-283	0:0:0:0:0:0:0:1	mdaly	/exams?print_id=true	2010-10-13 09:57:22-05
-284	0:0:0:0:0:0:0:1	mdaly	/patients/print_rsna_id	2010-10-13 09:57:24-05
-285	0:0:0:0:0:0:0:1	mdaly	/exams/add_to_cart?id=42	2010-10-13 10:13:42-05
-286	0:0:0:0:0:0:0:1	mdaly	/exams/show_cart	2010-10-13 10:14:47-05
-287	0:0:0:0:0:0:0:1	mdaly	/exams/send_cart	2010-10-13 10:14:51-05
-288	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-13 10:14:53-05
-289	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 10:21:33-05
-290	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14509	2010-10-13 10:21:48-05
-291	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14511	2010-10-13 10:22:06-05
-292	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 10:27:03-05
-293	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14512	2010-10-13 10:27:07-05
-294	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14512	2010-10-13 10:44:03-05
-295	0:0:0:0:0:0:0:1	mdaly	/admin/audit_filter?filter=IHE9357.10	2010-10-13 10:49:18-05
-296	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 10:49:30-05
-297	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 10:49:30-05
-298	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=wed	2010-10-13 10:49:35-05
-299	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id?patient_id=42&commit=Yes	2010-10-13 10:49:50-05
-300	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-13 10:49:50-05
-301	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 10:49:57-05
-302	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 11:31:52-05
-303	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 11:31:53-05
-304	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=wed	2010-10-13 11:31:56-05
-305	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id?patient_id=42&commit=Yes	2010-10-13 11:32:34-05
-306	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-13 11:32:34-05
-307	0:0:0:0:0:0:0:1	mdaly	/exams/add_to_cart?id=42	2010-10-13 11:32:39-05
-308	0:0:0:0:0:0:0:1	mdaly	/exams/show_cart	2010-10-13 11:32:43-05
-309	0:0:0:0:0:0:0:1	mdaly	/exams/empty_cart	2010-10-13 11:32:51-05
-310	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-13 11:32:51-05
-311	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 11:33:05-05
-312	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 11:33:05-05
-313	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 11:33:31-05
-314	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14512	2010-10-13 11:33:37-05
-315	0:0:0:0:0:0:0:1	mdaly	/admin/audit_filter?filter=283348176	2010-10-13 11:33:49-05
-316	0:0:0:0:0:0:0:1	mdaly	/admin/audit_filter?filter=	2010-10-13 11:33:55-05
-317	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 11:36:41-05
-318	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 11:38:24-05
-319	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 11:42:25-05
-320	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 11:42:45-05
-321	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 11:42:51-05
-322	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 11:42:51-05
-323	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 11:45:04-05
-324	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 11:45:04-05
-325	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=wed	2010-10-13 11:45:06-05
-326	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 11:45:54-05
-327	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14512	2010-10-13 11:46:19-05
-328	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 12:40:14-05
-329	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=43&commit=Yes	2010-10-13 12:40:20-05
-330	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 12:40:30-05
-331	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 12:40:31-05
-332	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 12:40:35-05
-333	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=43	2010-10-13 12:40:46-05
-334	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 12:40:49-05
-335	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 12:40:54-05
-336	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 12:40:56-05
-337	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 13:14:41-05
-338	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 13:14:42-05
-339	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 13:42:59-05
-340	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 13:42:59-05
-341	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 13:43:08-05
-342	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 13:43:35-05
-343	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=4392	2010-10-13 13:45:20-05
-344	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=47&commit=Yes	2010-10-13 13:45:46-05
-345	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 13:46:51-05
-346	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 13:46:52-05
-347	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 13:46:53-05
-348	0:0:0:0:0:0:0:1	admin	/	2010-10-13 13:47:34-05
-349	0:0:0:0:0:0:0:1	admin	/patients/search?search=	2010-10-13 13:47:49-05
-350	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=47	2010-10-13 13:52:06-05
-351	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 13:52:10-05
-352	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 13:52:20-05
-353	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 13:52:21-05
-354	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 13:52:46-05
-355	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 13:52:54-05
-356	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14519	2010-10-13 13:53:01-05
-357	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 13:54:28-05
-358	0:0:0:0:0:0:0:1	wtellis	/admin/audit_filter?filter=4392	2010-10-13 13:56:20-05
-359	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14519	2010-10-13 13:56:29-05
-360	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 13:57:10-05
-361	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 13:57:11-05
-362	0:0:0:0:0:0:0:1	admin	/patients/create_rsna_id?patient_id=44&commit=Yes	2010-10-13 13:57:18-05
-363	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 13:57:30-05
-364	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 13:57:30-05
-365	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 13:57:55-05
-366	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 13:57:56-05
-367	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 13:58:09-05
-368	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 13:58:16-05
-369	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 13:58:30-05
-370	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 13:58:30-05
-371	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 13:58:30-05
-372	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 13:58:31-05
-373	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 13:58:38-05
-374	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 13:58:39-05
-375	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 13:59:02-05
-376	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=764467765	2010-10-13 13:59:25-05
-377	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=43&commit=Yes	2010-10-13 13:59:33-05
-378	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 13:59:34-05
-379	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=43	2010-10-13 13:59:41-05
-380	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 13:59:43-05
-381	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 14:00:01-05
-382	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 14:00:02-05
-383	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-13 14:00:21-05
-384	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 14:00:23-05
-385	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 14:02:01-05
-386	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 14:02:02-05
-387	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 14:02:02-05
-388	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 14:02:03-05
-389	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 14:02:06-05
-390	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=Dean%2C+Jimmy	2010-10-13 14:02:15-05
-391	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=Dean	2010-10-13 14:02:20-05
-392	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=Dean%2C+Jimmy	2010-10-13 14:02:31-05
-393	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=Dean+Jimmy	2010-10-13 14:02:40-05
-394	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=Jimmy	2010-10-13 14:02:44-05
-395	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=dean	2010-10-13 14:02:49-05
-396	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=44&commit=Yes	2010-10-13 14:03:59-05
-397	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 14:05:01-05
-398	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 14:05:01-05
-399	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 14:05:03-05
-400	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 14:05:42-05
-401	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 14:05:42-05
-402	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=IHE112174.2	2010-10-13 14:05:47-05
-403	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=caa	2010-10-13 14:08:13-05
-404	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=48&commit=Yes	2010-10-13 14:08:22-05
-405	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 14:08:33-05
-406	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 14:08:34-05
-407	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 14:08:36-05
-408	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=48	2010-10-13 14:08:46-05
-409	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=49	2010-10-13 14:08:48-05
-410	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 14:10:31-05
-411	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 14:10:31-05
-412	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=wed	2010-10-13 14:10:35-05
-413	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id?patient_id=47&commit=Yes	2010-10-13 14:10:46-05
-414	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-13 14:10:47-05
-415	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 14:11:33-05
-416	0:0:0:0:0:0:0:1	mdaly	/exams/add_to_cart?id=47	2010-10-13 14:11:34-05
-417	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 14:11:49-05
-418	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 14:11:52-05
-419	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 14:12:21-05
-420	0:0:0:0:0:0:0:1	wtellis	/admin/audit_filter?filter=	2010-10-13 14:12:50-05
-421	0:0:0:0:0:0:0:1	mdaly	/exams/show_cart	2010-10-13 14:13:21-05
-422	0:0:0:0:0:0:0:1	mdaly	/exams/empty_cart	2010-10-13 14:13:23-05
-423	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-13 14:13:23-05
-424	0:0:0:0:0:0:0:1	mdaly	/patients/new	2010-10-13 14:13:27-05
-425	0:0:0:0:0:0:0:1	mdaly	/	2010-10-13 14:13:28-05
-426	0:0:0:0:0:0:0:1	wtellis	/admin/audit_filter?filter=	2010-10-13 14:13:51-05
-427	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=	2010-10-13 14:19:52-05
-428	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 15:17:53-05
-429	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 15:17:53-05
-430	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 15:17:54-05
-431	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 15:17:57-05
-432	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=49&commit=Yes	2010-10-13 15:18:02-05
-433	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 15:18:14-05
-434	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 15:18:15-05
-435	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 15:18:17-05
-436	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 15:18:26-05
-437	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 15:19:34-05
-438	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 15:19:34-05
-439	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 15:19:38-05
-440	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=49&commit=Yes	2010-10-13 15:19:42-05
-441	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 15:19:43-05
-442	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=50	2010-10-13 15:19:46-05
-443	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=51	2010-10-13 15:19:47-05
-444	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 15:19:48-05
-445	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 15:19:51-05
-446	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 15:19:52-05
-447	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 15:20:07-05
-448	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 18:47:51-05
-449	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 18:47:52-05
-450	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 18:47:58-05
-451	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=50&commit=Yes	2010-10-13 18:48:08-05
-452	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 18:48:17-05
-453	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 18:48:18-05
-454	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 18:48:20-05
-455	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=52	2010-10-13 18:48:25-05
-456	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=53	2010-10-13 18:48:25-05
-457	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 18:48:28-05
-458	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 18:48:30-05
-459	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 18:48:31-05
-460	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-13 18:57:56-05
-461	0:0:0:0:0:0:0:1	wtellis	/	2010-10-13 18:57:56-05
-462	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-13 18:58:01-05
-463	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=51&commit=Yes	2010-10-13 18:58:13-05
-464	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-13 18:58:21-05
-465	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-13 18:58:21-05
-466	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-13 18:58:23-05
-467	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=54	2010-10-13 18:58:30-05
-468	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=55	2010-10-13 18:58:31-05
-469	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 18:58:36-05
-470	0:0:0:0:0:0:0:1	wtellis	/exams/empty_cart	2010-10-13 18:58:41-05
-471	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 18:58:42-05
-472	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=54	2010-10-13 18:58:45-05
-473	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=55	2010-10-13 18:58:47-05
-474	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-13 18:58:49-05
-475	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-13 18:59:08-05
-476	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-13 18:59:08-05
-477	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-13 19:02:10-05
-478	0:0:0:0:0:0:0:1	mdaly	/	2010-10-14 08:23:13-05
-479	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 10:47:25-05
-480	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-14 10:47:30-05
-481	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=52&commit=Yes	2010-10-14 10:47:49-05
-482	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-14 10:47:58-05
-483	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-14 10:47:58-05
-484	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-14 10:48:00-05
-485	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=56	2010-10-14 10:48:06-05
-486	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-14 10:48:09-05
-487	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-14 10:48:12-05
-488	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-14 10:48:13-05
-489	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 11:52:48-05
-490	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-14 11:52:53-05
-492	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-14 12:14:18-05
-493	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14576	2010-10-14 12:18:11-05
-494	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-14 13:10:17-05
-495	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 13:10:17-05
-496	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-14 13:10:21-05
-497	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=day	2010-10-14 13:10:26-05
-498	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=53&commit=Yes	2010-10-14 13:10:29-05
-499	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-14 13:10:38-05
-500	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-14 13:10:39-05
-501	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-14 13:10:40-05
-502	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=57	2010-10-14 13:10:48-05
-503	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-14 13:10:49-05
-504	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-14 13:11:30-05
-505	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-14 13:11:31-05
-506	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-14 13:11:53-05
-507	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-14 13:21:12-05
-508	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 13:21:12-05
-509	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=day	2010-10-14 13:21:19-05
-510	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=day	2010-10-14 13:21:21-05
-511	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=day	2010-10-14 13:21:23-05
-512	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=day	2010-10-14 13:21:29-05
-513	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-14 13:21:33-05
-514	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=54&commit=Yes	2010-10-14 13:21:49-05
-515	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-14 13:21:59-05
-516	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-14 13:22:00-05
-517	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-14 13:22:01-05
-518	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=58	2010-10-14 13:22:26-05
-519	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-14 13:22:28-05
-520	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-14 13:22:31-05
-521	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-14 13:22:33-05
-522	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-14 13:22:40-05
-523	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-14 14:53:28-05
-524	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 14:53:29-05
-525	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=sixty	2010-10-14 14:53:38-05
-526	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=55&commit=Yes	2010-10-14 14:53:42-05
-527	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-14 14:53:51-05
-528	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-14 14:53:51-05
-529	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-14 14:53:53-05
-530	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=59	2010-10-14 14:54:01-05
-531	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-14 14:54:02-05
-532	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-14 14:54:05-05
-533	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-14 14:54:05-05
-534	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-14 14:54:17-05
-535	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 15:40:31-05
-536	0:0:0:0:0:0:0:1	wzhu	/	2010-10-14 15:40:42-05
-537	0:0:0:0:0:0:0:1	wzhu	/patients/search?search=	2010-10-14 15:40:52-05
-538	0:0:0:0:0:0:0:1	wtellis	/	2010-10-14 15:42:17-05
-539	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=	2010-10-14 15:42:20-05
-540	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=56&commit=Yes	2010-10-14 15:42:29-05
-541	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-14 15:42:40-05
-542	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-14 15:42:41-05
-543	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-14 15:42:42-05
-544	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=60	2010-10-14 15:42:52-05
-545	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-14 15:42:58-05
-546	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-14 15:43:03-05
-547	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-14 15:43:03-05
-548	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-14 15:43:13-05
-549	0:0:0:0:0:0:0:1	mdaly	/	2010-10-14 15:43:30-05
-550	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=	2010-10-14 15:43:50-05
-551	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=test	2010-10-14 15:44:00-05
-552	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id?patient_id=43&commit=Yes	2010-10-14 15:44:32-05
-553	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-14 15:44:32-05
-554	0:0:0:0:0:0:0:1	mdaly	/patients/search?search=Dean	2010-10-14 15:48:41-05
-555	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id?patient_id=45&commit=Yes	2010-10-14 15:50:12-05
-556	0:0:0:0:0:0:0:1	mdaly	/patients/create_rsna_id	2010-10-14 15:50:32-05
-557	0:0:0:0:0:0:0:1	mdaly	/exams?print_id=true	2010-10-14 15:50:32-05
-558	0:0:0:0:0:0:0:1	mdaly	/patients/print_rsna_id	2010-10-14 15:50:34-05
-559	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-14 15:50:37-05
-560	0:0:0:0:0:0:0:1	mdaly	/exams/add_to_cart?id=45	2010-10-14 15:51:28-05
-561	0:0:0:0:0:0:0:1	mdaly	/exams/show_cart	2010-10-14 15:51:42-05
-562	0:0:0:0:0:0:0:1	mdaly	/exams/empty_cart	2010-10-14 15:52:23-05
-563	0:0:0:0:0:0:0:1	mdaly	/exams	2010-10-14 15:52:23-05
-564	0:0:0:0:0:0:0:1	mdaly	/admin/audit	2010-10-14 15:52:38-05
-565	0:0:0:0:0:0:0:1	mdaly	/admin/audit_filter?filter=717091616	2010-10-14 15:52:46-05
-566	0:0:0:0:0:0:0:1	mdaly	/admin/audit_details?id=14597	2010-10-14 15:53:01-05
-567	0:0:0:0:0:0:0:1	mdaly	/	2010-10-14 16:00:45-05
-568	0:0:0:0:0:0:0:1	mdaly	/	2010-10-14 16:01:20-05
-569	0:0:0:0:0:0:0:1	wzhu	/	2010-10-14 16:01:40-05
-570	0:0:0:0:0:0:0:1	wzhu	/admin/audit	2010-10-14 16:01:51-05
-571	0:0:0:0:0:0:0:1	wzhu	/patients/new	2010-10-14 16:02:19-05
-572	0:0:0:0:0:0:0:1	wzhu	/	2010-10-14 16:02:20-05
-573	0:0:0:0:0:0:0:1	wzhu	/patients/search?search=	2010-10-14 16:02:28-05
-574	0:0:0:0:0:0:0:1	smoore	/	2010-10-14 16:03:01-05
-575	0:0:0:0:0:0:0:1	smoore	/patients/search?search=wed	2010-10-14 16:05:02-05
-576	0:0:0:0:0:0:0:1	wzhu	/patients/create_rsna_id?patient_id=56&commit=Yes	2010-10-14 16:05:59-05
-577	0:0:0:0:0:0:0:1	wzhu	/exams	2010-10-14 16:05:59-05
-578	0:0:0:0:0:0:0:1	smoore	/	2010-10-14 16:58:37-05
-579	0:0:0:0:0:0:0:1	smoore	/patients/search?search=198210769	2010-10-14 16:58:57-05
-580	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=57&commit=Yes	2010-10-14 16:59:07-05
-581	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-14 16:59:28-05
-582	172.20.175.242	smoore	/exams?print_id=true	2010-10-14 16:59:29-05
-583	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-14 16:59:40-05
-584	172.20.175.242	smoore	/exams/add_to_cart?id=61	2010-10-14 17:00:10-05
-585	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-14 17:00:13-05
-586	172.20.175.242	smoore	/exams/send_cart	2010-10-14 17:00:16-05
-587	172.20.175.242	smoore	/exams	2010-10-14 17:00:17-05
-588	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-14 17:04:40-05
-589	0:0:0:0:0:0:0:1	smoore	/	2010-10-14 17:04:41-05
-590	0:0:0:0:0:0:0:1	smoore	/patients/search?search=222421165	2010-10-14 17:04:54-05
-591	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=58&commit=Yes	2010-10-14 17:05:05-05
-592	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-14 17:05:19-05
-593	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-14 17:05:30-05
-594	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-14 17:05:31-05
-595	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-14 17:05:42-05
-596	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=62	2010-10-14 17:05:52-05
-597	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-14 17:06:24-05
-598	0:0:0:0:0:0:0:1	smoore	/exams/send_cart	2010-10-14 17:06:26-05
-599	0:0:0:0:0:0:0:1	smoore	/exams	2010-10-14 17:06:27-05
-600	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-14 17:23:00-05
-601	0:0:0:0:0:0:0:1	smoore	/	2010-10-14 17:23:00-05
-602	0:0:0:0:0:0:0:1	smoore	/patients/search?search=532194	2010-10-14 17:23:10-05
-603	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=59&commit=Yes	2010-10-14 17:23:17-05
-604	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-14 17:23:25-05
-605	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-14 17:23:26-05
-606	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-14 17:23:37-05
-607	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=63	2010-10-14 17:23:43-05
-608	172.20.175.242	smoore	/exams/show_cart	2010-10-14 17:23:45-05
-609	172.20.175.242	smoore	/exams/send_cart	2010-10-14 17:23:48-05
-610	0:0:0:0:0:0:0:1	smoore	/exams	2010-10-14 17:23:49-05
-611	0:0:0:0:0:0:0:1	wtellis	/	2010-10-15 16:33:36-05
-612	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=sixty	2010-10-15 16:33:41-05
-613	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=60&commit=Yes	2010-10-15 16:33:48-05
-614	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-15 16:33:57-05
-615	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-15 16:33:58-05
-616	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-15 16:33:59-05
-617	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=64	2010-10-15 16:34:11-05
-618	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-15 16:34:12-05
-619	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-15 16:34:16-05
-620	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-15 16:34:17-05
-621	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-15 16:34:31-05
-622	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14622	2010-10-15 16:34:37-05
-623	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-15 16:35:13-05
-624	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14622	2010-10-15 16:35:18-05
-625	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14622	2010-10-15 16:40:17-05
-626	0:0:0:0:0:0:0:1	wtellis	/patients/new	2010-10-15 16:41:07-05
-627	0:0:0:0:0:0:0:1	wtellis	/	2010-10-15 16:41:08-05
-628	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=seventy	2010-10-15 16:41:15-05
-629	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=61&commit=Yes	2010-10-15 16:41:35-05
-630	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-15 16:41:44-05
-631	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-15 16:41:44-05
-632	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-15 16:41:46-05
-633	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=65	2010-10-15 16:41:51-05
-634	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-15 16:41:58-05
-635	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-15 16:42:02-05
-636	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-15 16:42:03-05
-637	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-15 16:46:22-05
-638	0:0:0:0:0:0:0:1	wtellis	/	2010-10-19 13:38:20-05
-639	0:0:0:0:0:0:0:1	admin	/	2010-10-19 13:38:24-05
-640	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=ctwoaa	2010-10-19 13:38:45-05
-641	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id?patient_id=62&commit=Yes	2010-10-19 13:39:55-05
-642	0:0:0:0:0:0:0:1	wtellis	/patients/create_rsna_id	2010-10-19 13:40:07-05
-643	0:0:0:0:0:0:0:1	wtellis	/exams?print_id=true	2010-10-19 13:40:10-05
-644	0:0:0:0:0:0:0:1	wtellis	/patients/print_rsna_id	2010-10-19 13:40:12-05
-645	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=66	2010-10-19 13:40:18-05
-646	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2010-10-19 13:40:21-05
-647	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart	2010-10-19 13:40:26-05
-648	0:0:0:0:0:0:0:1	wtellis	/exams	2010-10-19 13:40:27-05
-649	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2010-10-19 13:40:39-05
-650	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14658	2010-10-19 13:41:07-05
-651	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14658	2010-10-19 13:41:44-05
-652	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14658	2010-10-19 13:42:59-05
-653	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14658	2010-10-19 13:43:09-05
-654	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14658	2010-10-19 13:55:42-05
-655	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-19 15:14:31-05
-656	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-19 15:14:55-05
-657	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2010-10-19 15:15:42-05
-658	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14577	2010-10-19 15:15:53-05
-659	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14665	2010-10-19 15:16:10-05
-660	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2010-10-19 15:16:20-05
-661	0:0:0:0:0:0:0:1	mwarnock	/	2010-10-19 15:16:21-05
-662	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=	2010-10-19 15:16:24-05
-663	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 09:03:56-05
-664	0:0:0:0:0:0:0:1	smoore	/patients/search?search=100621249	2010-10-20 09:04:26-05
-665	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=63&commit=Yes	2010-10-20 09:04:33-05
-666	172.20.175.242	smoore	/patients/create_rsna_id	2010-10-20 09:04:45-05
-667	172.20.175.242	smoore	/exams?print_id=true	2010-10-20 09:04:46-05
-668	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-20 09:05:02-05
-669	172.20.175.242	smoore	/exams/add_to_cart?id=67	2010-10-20 09:05:32-05
-670	172.20.175.242	smoore	/exams/show_cart	2010-10-20 09:05:34-05
-671	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=67	2010-10-20 09:05:35-05
-672	0:0:0:0:0:0:0:1	smoore	/exams/send_cart	2010-10-20 09:05:39-05
-673	172.20.175.242	smoore	/exams	2010-10-20 09:05:39-05
-674	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 09:13:31-05
-675	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 09:13:33-05
-676	0:0:0:0:0:0:0:1	smoore	/patients/search?search=878012805	2010-10-20 09:13:38-05
-677	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=64&commit=Yes	2010-10-20 09:13:43-05
-678	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 09:13:53-05
-679	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 09:13:54-05
-680	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-20 09:14:10-05
-681	172.20.175.242	smoore	/exams/add_to_cart?id=68	2010-10-20 09:14:18-05
-682	172.20.175.242	smoore	/exams/show_cart	2010-10-20 09:14:22-05
-683	172.20.175.242	smoore	/exams/send_cart	2010-10-20 09:14:25-05
-684	0:0:0:0:0:0:0:1	smoore	/exams	2010-10-20 09:14:26-05
-685	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 09:31:43-05
-686	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 09:31:44-05
-687	0:0:0:0:0:0:0:1	smoore	/patients/search?search=225829605	2010-10-20 09:31:51-05
-688	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=65&commit=Yes	2010-10-20 09:32:01-05
-689	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 09:32:14-05
-690	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 09:32:15-05
-691	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-20 09:32:41-05
-692	172.20.175.242	smoore	/exams/add_to_cart?id=69	2010-10-20 09:32:59-05
-693	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-20 09:33:02-05
-694	172.20.175.242	smoore	/exams/send_cart	2010-10-20 09:33:05-05
-695	0:0:0:0:0:0:0:1	smoore	/exams	2010-10-20 09:33:07-05
-696	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 10:08:24-05
-697	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 10:08:25-05
-698	0:0:0:0:0:0:0:1	smoore	/patients/search?search=258122542+	2010-10-20 10:08:30-05
-699	0:0:0:0:0:0:0:1	smoore	/patients/search?search=258122542+	2010-10-20 10:08:39-05
-700	0:0:0:0:0:0:0:1	smoore	/patients/search?search=258122542	2010-10-20 10:08:53-05
-701	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=66&commit=Yes	2010-10-20 10:08:58-05
-702	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 10:09:06-05
-703	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 10:09:06-05
-704	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-20 10:09:43-05
-705	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=70	2010-10-20 10:09:48-05
-706	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-20 10:09:50-05
-707	172.20.175.242	smoore	/exams/send_cart	2010-10-20 10:09:53-05
-708	172.20.175.242	smoore	/exams	2010-10-20 10:09:54-05
-709	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 22:12:34-05
-710	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 22:12:35-05
-711	0:0:0:0:0:0:0:1	smoore	/patients/search?search=448520587	2010-10-20 22:13:08-05
-712	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=67&commit=Yes	2010-10-20 22:13:23-05
-713	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 22:13:56-05
-714	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 22:13:57-05
-715	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-20 22:14:14-05
-716	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=71	2010-10-20 22:14:42-05
-717	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-20 22:14:45-05
-718	172.20.175.242	smoore	/exams/send_cart	2010-10-20 22:14:51-05
-719	172.20.175.242	smoore	/exams	2010-10-20 22:14:52-05
-720	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=71	2010-10-20 22:27:01-05
-721	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 22:27:07-05
-722	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 22:27:08-05
-723	0:0:0:0:0:0:0:1	smoore	/patients/search?search=194783596	2010-10-20 22:27:15-05
-724	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=68&commit=Yes	2010-10-20 22:27:23-05
-725	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 22:27:35-05
-726	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 22:27:36-05
-727	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-20 22:27:52-05
-728	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=72	2010-10-20 22:28:06-05
-729	172.20.175.242	smoore	/exams/show_cart	2010-10-20 22:28:16-05
-730	172.20.175.242	smoore	/exams/send_cart	2010-10-20 22:28:20-05
-731	172.20.175.242	smoore	/exams	2010-10-20 22:28:22-05
-732	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 23:05:17-05
-733	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 23:05:18-05
-734	0:0:0:0:0:0:0:1	smoore	/patients/search?search=277621360	2010-10-20 23:05:26-05
-735	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=69&commit=Yes	2010-10-20 23:05:36-05
-736	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 23:05:47-05
-737	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 23:05:48-05
-738	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-20 23:06:14-05
-739	172.20.175.242	smoore	/exams/add_to_cart?id=73	2010-10-20 23:06:30-05
-740	172.20.175.242	smoore	/exams/show_cart	2010-10-20 23:06:35-05
-741	172.20.175.242	smoore	/exams/send_cart	2010-10-20 23:06:44-05
-742	172.20.175.242	smoore	/exams	2010-10-20 23:06:45-05
-743	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 23:13:13-05
-744	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 23:13:14-05
-745	0:0:0:0:0:0:0:1	smoore	/patients/search?search=110069930	2010-10-20 23:13:22-05
-746	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=70&commit=Yes	2010-10-20 23:13:32-05
-747	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 23:13:43-05
-748	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 23:13:44-05
-749	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-20 23:14:00-05
-750	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=74	2010-10-20 23:14:10-05
-751	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-20 23:14:17-05
-752	172.20.175.242	smoore	/exams/send_cart	2010-10-20 23:14:26-05
-753	172.20.175.242	smoore	/exams	2010-10-20 23:14:27-05
-754	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 23:32:38-05
-755	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 23:32:39-05
-756	0:0:0:0:0:0:0:1	smoore	/patients/search?search=291816949	2010-10-20 23:32:46-05
-757	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=71&commit=Yes	2010-10-20 23:32:59-05
-758	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 23:33:12-05
-759	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 23:33:13-05
-760	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-20 23:33:39-05
-761	172.20.175.242	smoore	/exams/add_to_cart?id=75	2010-10-20 23:33:50-05
-762	172.20.175.242	smoore	/exams/show_cart	2010-10-20 23:33:55-05
-763	0:0:0:0:0:0:0:1	smoore	/exams/send_cart	2010-10-20 23:34:04-05
-764	172.20.175.242	smoore	/exams	2010-10-20 23:34:05-05
-765	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-20 23:48:52-05
-766	0:0:0:0:0:0:0:1	smoore	/	2010-10-20 23:48:53-05
-767	0:0:0:0:0:0:0:1	smoore	/patients/search?search=915914130	2010-10-20 23:49:01-05
-768	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=72&commit=Yes	2010-10-20 23:49:11-05
-769	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-20 23:49:23-05
-770	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-20 23:49:24-05
-771	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-20 23:49:41-05
-772	172.20.175.242	smoore	/exams/add_to_cart?id=76	2010-10-20 23:49:53-05
-773	172.20.175.242	smoore	/exams/show_cart	2010-10-20 23:50:01-05
-774	0:0:0:0:0:0:0:1	smoore	/exams/send_cart	2010-10-20 23:50:04-05
-775	172.20.175.242	smoore	/exams	2010-10-20 23:50:05-05
-776	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-21 16:41:27-05
-777	0:0:0:0:0:0:0:1	smoore	/	2010-10-21 16:41:27-05
-778	0:0:0:0:0:0:0:1	smoore	/patients/search?search=138546187	2010-10-21 16:41:35-05
-779	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=73&commit=Yes	2010-10-21 16:41:40-05
-780	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-21 16:41:48-05
-781	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-21 16:41:48-05
-782	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-21 16:42:05-05
-783	172.20.175.242	smoore	/exams/add_to_cart?id=77	2010-10-21 16:42:20-05
-784	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-21 16:42:24-05
-785	0:0:0:0:0:0:0:1	smoore	/exams/send_cart	2010-10-21 16:42:26-05
-786	172.20.175.242	smoore	/exams	2010-10-21 16:42:27-05
-787	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-21 16:53:15-05
-788	0:0:0:0:0:0:0:1	smoore	/	2010-10-21 16:53:16-05
-789	0:0:0:0:0:0:0:1	smoore	/patients/search?search=700193747	2010-10-21 16:53:21-05
-790	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=74&commit=Yes	2010-10-21 16:53:27-05
-791	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-21 16:53:36-05
-792	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-21 16:53:37-05
-793	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-21 16:54:03-05
-794	172.20.175.242	smoore	/exams/add_to_cart?id=78	2010-10-21 16:54:19-05
-795	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=78	2010-10-21 16:54:19-05
-796	172.20.175.242	smoore	/exams/show_cart	2010-10-21 16:54:21-05
-797	172.20.175.242	smoore	/exams/send_cart	2010-10-21 16:54:25-05
-798	172.20.175.242	smoore	/exams	2010-10-21 16:54:26-05
-799	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-21 21:08:32-05
-800	0:0:0:0:0:0:0:1	smoore	/	2010-10-21 21:08:32-05
-801	0:0:0:0:0:0:0:1	smoore	/patients/search?search=426729010	2010-10-21 21:08:39-05
-802	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=75&commit=Yes	2010-10-21 21:08:45-05
-803	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-21 21:08:55-05
-804	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-21 21:08:56-05
-805	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-21 21:09:19-05
-806	172.20.175.242	smoore	/exams/add_to_cart?id=79	2010-10-21 21:09:25-05
-807	172.20.175.242	smoore	/exams/show_cart	2010-10-21 21:09:32-05
-808	172.20.175.242	smoore	/exams/send_cart	2010-10-21 21:09:36-05
-809	172.20.175.242	smoore	/exams	2010-10-21 21:09:37-05
-810	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-21 21:55:13-05
-811	0:0:0:0:0:0:0:1	smoore	/	2010-10-21 21:55:14-05
-812	0:0:0:0:0:0:0:1	smoore	/patients/search?search=554468902	2010-10-21 21:55:20-05
-813	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=76&commit=Yes	2010-10-21 21:55:33-05
-814	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-21 21:55:43-05
-815	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-21 21:55:44-05
-816	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-21 21:56:01-05
-817	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=80	2010-10-21 21:56:09-05
-818	172.20.175.242	smoore	/exams/show_cart	2010-10-21 21:56:24-05
-819	0:0:0:0:0:0:0:1	smoore	/exams/send_cart	2010-10-21 21:56:34-05
-820	172.20.175.242	smoore	/exams	2010-10-21 21:56:35-05
-821	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-21 22:16:10-05
-822	0:0:0:0:0:0:0:1	smoore	/	2010-10-21 22:16:10-05
-823	0:0:0:0:0:0:0:1	smoore	/patients/search?search=764181133	2010-10-21 22:16:38-05
-824	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=77&commit=Yes	2010-10-21 22:16:50-05
-825	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-21 22:17:01-05
-826	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-21 22:17:02-05
-827	172.20.175.242	smoore	/patients/print_rsna_id	2010-10-21 22:17:31-05
-828	172.20.175.242	smoore	/exams/add_to_cart?id=81	2010-10-21 22:17:46-05
-829	172.20.175.242	smoore	/exams/show_cart	2010-10-21 22:17:53-05
-830	172.20.175.242	smoore	/exams/send_cart	2010-10-21 22:18:09-05
-831	172.20.175.242	smoore	/exams	2010-10-21 22:18:10-05
-832	0:0:0:0:0:0:0:1	smoore	/patients/new	2010-10-21 23:02:40-05
-833	0:0:0:0:0:0:0:1	smoore	/	2010-10-21 23:02:40-05
-834	0:0:0:0:0:0:0:1	smoore	/patients/search?search=276730794	2010-10-21 23:02:47-05
-835	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id?patient_id=78&commit=Yes	2010-10-21 23:03:13-05
-836	0:0:0:0:0:0:0:1	smoore	/patients/create_rsna_id	2010-10-21 23:03:45-05
-837	0:0:0:0:0:0:0:1	smoore	/exams?print_id=true	2010-10-21 23:03:48-05
-838	0:0:0:0:0:0:0:1	smoore	/patients/print_rsna_id	2010-10-21 23:04:07-05
-839	0:0:0:0:0:0:0:1	smoore	/exams/add_to_cart?id=82	2010-10-21 23:04:47-05
-840	0:0:0:0:0:0:0:1	smoore	/exams/show_cart	2010-10-21 23:04:48-05
-841	172.20.175.242	smoore	/exams/send_cart	2010-10-21 23:05:04-05
-842	0:0:0:0:0:0:0:1	smoore	/exams	2010-10-21 23:05:08-05
+843	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-11 14:24:41-06
+844	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-11 14:24:49-06
+845	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=81&commit=Yes	2011-01-11 14:24:55-06
+846	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-11 14:24:55-06
+847	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=85	2011-01-11 14:24:59-06
+848	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-11 14:25:01-06
+849	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=QqtTiA6z8tC4oohRFn1fF%2BJWpMGioD31ItBKsUhGh3s%3D&exam_ids%5B%5D=85&patient_password=asdf&patient_password_confirmation=asdf&email=mwarnock%40umm.edu	2011-01-11 14:25:20-06
+850	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=QqtTiA6z8tC4oohRFn1fF%2BJWpMGioD31ItBKsUhGh3s%3D&exam_ids%5B%5D=85&patient_password=asdf&patient_password_confirmation=asdf&email=mwarnock%40umm.edu	2011-01-11 14:25:20-06
+851	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81&token=bogus	2011-01-11 14:25:29-06
+852	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=bogus	2011-01-11 14:25:30-06
+853	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-01-11 14:28:51-06
+854	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14787	2011-01-11 14:30:57-06
+855	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14798	2011-01-11 14:31:10-06
+856	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-11 14:32:10-06
+857	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-11 14:32:10-06
+858	0:0:0:0:0:0:0:1	wtellis	/	2011-01-11 16:02:08-06
+859	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-11 16:02:32-06
+860	0:0:0:0:0:0:0:1	wtellis	/patients/new/	2011-01-11 16:02:35-06
+861	0:0:0:0:0:0:0:1	wtellis	/	2011-01-11 16:02:35-06
+862	0:0:0:0:0:0:0:1	wtellis	/patients/new/	2011-01-11 16:02:36-06
+863	0:0:0:0:0:0:0:1	wtellis	/	2011-01-11 16:02:37-06
+864	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-11 16:02:37-06
+865	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=81&commit=Yes	2011-01-11 16:02:44-06
+866	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-11 16:02:45-06
+867	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-11 16:02:48-06
+868	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-11 16:02:49-06
+869	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=two&search_type=simple	2011-01-11 16:03:41-06
+870	0:0:0:0:0:0:0:1	wtellis	/	2011-01-11 16:03:57-06
+871	0:0:0:0:0:0:0:1	sglanger	/	2011-01-12 09:03:32-06
+872	0:0:0:0:0:0:0:1	sglanger	/patients/search?search=&search_type=simple	2011-01-12 09:03:58-06
+873	0:0:0:0:0:0:0:1	sglanger	/patients/search?search=a&search_type=simple	2011-01-12 09:04:06-06
+874	0:0:0:0:0:0:0:1	sglanger	/patients/record_consent?patient_id=83&commit=Yes	2011-01-12 09:04:57-06
+875	0:0:0:0:0:0:0:1	sglanger	/exams	2011-01-12 09:04:58-06
+876	0:0:0:0:0:0:0:1	sglanger	/patients/new	2011-01-12 09:05:12-06
+877	0:0:0:0:0:0:0:1	sglanger	/	2011-01-12 09:05:12-06
+878	0:0:0:0:0:0:0:1	sglanger	/patients/search?search=a&search_type=simple	2011-01-12 09:05:17-06
+879	0:0:0:0:0:0:0:1	sglanger	/exams?patient_id=83	2011-01-12 09:05:44-06
+880	0:0:0:0:0:0:0:1	sglanger	/patients/new	2011-01-12 09:05:52-06
+881	0:0:0:0:0:0:0:1	sglanger	/	2011-01-12 09:05:53-06
+882	0:0:0:0:0:0:0:1	sglanger	/patients/search?search=a&search_type=simple	2011-01-12 09:05:59-06
+883	0:0:0:0:0:0:0:1	sglanger	/exams?patient_id=83	2011-01-12 09:06:05-06
+884	0:0:0:0:0:0:0:1	sglanger	/exams	2011-01-12 09:06:16-06
+885	0:0:0:0:0:0:0:1	sglanger	/exams	2011-01-12 09:06:25-06
+886	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-12 11:26:18-06
+887	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-12 11:26:22-06
+888	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=80&commit=Yes	2011-01-12 11:26:51-06
+889	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-12 11:26:52-06
+890	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=84	2011-01-12 11:26:55-06
+891	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-12 11:26:57-06
+892	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-01-12 11:27:06-06
+893	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-12 11:45:32-06
+894	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-12 11:45:52-06
+895	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-12 11:46:05-06
+896	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-12 11:46:20-06
+897	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-12 11:46:21-06
+898	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-12 11:46:25-06
+899	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-12 11:46:27-06
+900	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-12 12:07:13-06
+901	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-12 12:07:13-06
+902	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-12 12:07:19-06
+903	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-12 12:07:27-06
+904	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=85	2011-01-12 12:07:31-06
+905	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-12 12:07:34-06
+906	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-01-12 12:07:41-06
+907	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14801	2011-01-12 12:07:45-06
+908	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14802	2011-01-12 12:07:51-06
+909	0:0:0:0:0:0:0:1	mwarnock	/admin/audit_details?id=14789	2011-01-12 12:07:55-06
+910	0:0:0:0:0:0:0:1	wtellis	/	2011-01-12 12:49:25-06
+911	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=&search_type=simple	2011-01-12 12:49:30-06
+912	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-12 12:49:33-06
+913	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=84&commit=Yes	2011-01-12 12:49:39-06
+914	0:0:0:0:0:0:0:1	wtellis	/exams	2011-01-12 12:49:40-06
+915	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=88	2011-01-12 12:49:44-06
+916	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-12 12:49:50-06
+917	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=N8ZNSzm4Qe6VbKFdfyRPZPEQ6wnp21GCME%2BIz2d8CRU%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 12:50:11-06
+918	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=N8ZNSzm4Qe6VbKFdfyRPZPEQ6wnp21GCME%2BIz2d8CRU%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 12:50:28-06
+919	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=N8ZNSzm4Qe6VbKFdfyRPZPEQ6wnp21GCME%2BIz2d8CRU%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 12:50:38-06
+920	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=N8ZNSzm4Qe6VbKFdfyRPZPEQ6wnp21GCME%2BIz2d8CRU%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 12:52:26-06
+989	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-14 18:18:04-06
+1058	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-21 10:19:44-06
+921	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=N8ZNSzm4Qe6VbKFdfyRPZPEQ6wnp21GCME%2BIz2d8CRU%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 12:52:27-06
+922	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84&token=bogus	2011-01-12 12:52:49-06
+923	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=bogus	2011-01-12 12:52:51-06
+924	0:0:0:0:0:0:0:1	wtellis	/	2011-01-12 17:43:36-06
+925	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-12 17:43:41-06
+926	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84	2011-01-12 17:43:44-06
+927	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=88	2011-01-12 17:43:47-06
+928	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-12 17:43:49-06
+929	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Z1uCIzBRG7%2Bl5nFEq%2BgfRTapp4TJtuOh9OAlj8Dqqg0%3D&exam_ids%5B%5D=88&patient_password=wtellis1234&patient_password_confirmation=wtellis1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 17:44:04-06
+930	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Z1uCIzBRG7%2Bl5nFEq%2BgfRTapp4TJtuOh9OAlj8Dqqg0%3D&exam_ids%5B%5D=88&patient_password=wtellis1234&patient_password_confirmation=wtellis1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 17:45:23-06
+931	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Z1uCIzBRG7%2Bl5nFEq%2BgfRTapp4TJtuOh9OAlj8Dqqg0%3D&exam_ids%5B%5D=88&patient_password=wtellis1234&patient_password_confirmation=wtellis1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 17:45:43-06
+932	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Z1uCIzBRG7%2Bl5nFEq%2BgfRTapp4TJtuOh9OAlj8Dqqg0%3D&exam_ids%5B%5D=88&patient_password=wtellis1234&patient_password_confirmation=wtellis1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 17:47:40-06
+933	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=Z1uCIzBRG7%2Bl5nFEq%2BgfRTapp4TJtuOh9OAlj8Dqqg0%3D&exam_ids%5B%5D=88&patient_password=wtellis1234&patient_password_confirmation=wtellis1234&email=wyatt.tellis%40ucsf.edu	2011-01-12 17:47:41-06
+934	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-13 16:53:49-06
+935	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-13 16:53:54-06
+936	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-01-13 16:53:57-06
+937	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-01-13 16:53:59-06
+938	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-13 16:55:03-06
+939	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-13 16:55:04-06
+940	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-01-13 17:12:37-06
+941	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-01-13 17:12:40-06
+942	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-01-13 17:15:34-06
+943	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-01-13 17:16:09-06
+944	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-01-13 17:16:56-06
+945	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-13 17:45:25-06
+946	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-13 17:45:36-06
+947	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-13 17:45:40-06
+948	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=85	2011-01-13 17:45:42-06
+949	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-13 17:45:44-06
+950	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=eHXMlUdn5aakwWYRuLiYpz3iTQY78EQhNaNppobyo8I%3D&exam_ids%5B%5D=85&patient_password=testit&patient_password_confirmation=testit&email=mwarnock%40umm.edu	2011-01-13 17:46:03-06
+951	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=eHXMlUdn5aakwWYRuLiYpz3iTQY78EQhNaNppobyo8I%3D&exam_ids%5B%5D=85&patient_password=testit&patient_password_confirmation=testit&email=mwarnock%40umm.edu	2011-01-13 17:46:04-06
+952	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81&token=bqx6kj7z	2011-01-13 17:46:08-06
+953	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=bqx6kj7z	2011-01-13 17:46:10-06
+954	0:0:0:0:0:0:0:1	wtellis	/	2011-01-14 17:47:24-06
+955	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=&search_type=simple	2011-01-14 17:47:28-06
+956	0:0:0:0:0:0:0:1	wtellis	/	2011-01-14 17:48:22-06
+957	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-14 17:49:05-06
+958	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80	2011-01-14 17:49:12-06
+959	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-14 17:49:16-06
+960	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-14 17:49:23-06
+961	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 17:49:38-06
+962	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 17:49:39-06
+963	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=u4ppkwbc	2011-01-14 17:49:42-06
+964	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=u4ppkwbc	2011-01-14 17:49:44-06
+965	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 17:50:32-06
+966	0:0:0:0:0:0:0:1	wtellis	/tail	2011-01-14 17:51:25-06
+967	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 17:54:14-06
+968	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=14838	2011-01-14 17:54:25-06
+969	0:0:0:0:0:0:0:1	wtellis	/tail	2011-01-14 18:11:36-06
+970	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 18:11:40-06
+971	0:0:0:0:0:0:0:1	wtellis	/tail	2011-01-14 18:11:49-06
+972	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-14 18:12:15-06
+973	0:0:0:0:0:0:0:1	wtellis	/	2011-01-14 18:12:15-06
+974	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-14 18:12:21-06
+975	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80	2011-01-14 18:12:25-06
+976	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-14 18:12:32-06
+977	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-14 18:12:34-06
+978	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 18:12:50-06
+979	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 18:12:50-06
+980	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=wwr68rcs	2011-01-14 18:12:55-06
+981	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=wwr68rcs	2011-01-14 18:12:57-06
+982	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 18:13:06-06
+983	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 18:14:47-06
+984	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-14 18:17:49-06
+985	0:0:0:0:0:0:0:1	wtellis	/	2011-01-14 18:17:50-06
+986	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=two&search_type=simple	2011-01-14 18:17:55-06
+987	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=81	2011-01-14 18:17:58-06
+988	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=85	2011-01-14 18:18:02-06
+990	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=85&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 18:18:20-06
+991	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=85&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 18:18:20-06
+992	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=81&token=fy78xihc	2011-01-14 18:18:23-06
+993	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=fy78xihc	2011-01-14 18:18:24-06
+994	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=85	2011-01-14 18:19:09-06
+995	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-14 18:19:13-06
+996	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 18:19:19-06
+997	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-14 18:26:30-06
+998	0:0:0:0:0:0:0:1	wtellis	/	2011-01-14 18:26:30-06
+999	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=212763672&search_type=simple	2011-01-14 18:26:33-06
+1000	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=81	2011-01-14 18:26:36-06
+1001	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=85	2011-01-14 18:26:38-06
+1002	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-14 18:26:42-06
+1003	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=85&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 18:26:55-06
+1004	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=VYqp9wQN7qQaE0s1xahfhkPIel08WJELpQuIK3BMWE8%3D&exam_ids%5B%5D=85&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-14 18:26:55-06
+1005	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=81&token=yswe6ohf	2011-01-14 18:26:57-06
+1006	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=yswe6ohf	2011-01-14 18:26:59-06
+1007	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-14 18:27:06-06
+1008	0:0:0:0:0:0:0:1	wtellis	/	2011-01-18 12:39:04-06
+1009	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-18 12:39:18-06
+1010	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-18 12:42:26-06
+1011	0:0:0:0:0:0:0:1	wtellis	/	2011-01-18 12:42:27-06
+1012	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-18 12:42:32-06
+1013	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80	2011-01-18 12:42:33-06
+1014	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-18 12:42:38-06
+1015	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-18 12:42:39-06
+1016	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=5KeeBlWuVCQQV0vw5ccImuDdy8voM3r1x8kIvAnp6fE%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-18 12:42:52-06
+1017	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=5KeeBlWuVCQQV0vw5ccImuDdy8voM3r1x8kIvAnp6fE%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-18 12:42:52-06
+1018	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=tqxk7rxd	2011-01-18 13:01:58-06
+1019	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=tqxk7rxd	2011-01-18 13:01:59-06
+1020	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-18 14:00:40-06
+1021	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-18 14:00:42-06
+1022	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=5KeeBlWuVCQQV0vw5ccImuDdy8voM3r1x8kIvAnp6fE%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-01-18 14:00:53-06
+1023	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=5KeeBlWuVCQQV0vw5ccImuDdy8voM3r1x8kIvAnp6fE%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-01-18 14:00:53-06
+1024	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=jmz3qry7	2011-01-18 14:00:55-06
+1025	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=jmz3qry7	2011-01-18 14:00:57-06
+1026	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-18 18:16:59-06
+1027	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-18 18:17:01-06
+1028	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=5KeeBlWuVCQQV0vw5ccImuDdy8voM3r1x8kIvAnp6fE%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-18 18:17:13-06
+1029	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=5KeeBlWuVCQQV0vw5ccImuDdy8voM3r1x8kIvAnp6fE%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-18 18:17:14-06
+1030	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=oaiyootc	2011-01-18 18:17:16-06
+1031	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=oaiyootc	2011-01-18 18:17:18-06
+1032	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-18 18:20:02-06
+1033	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-19 09:01:56-06
+1034	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-01-19 09:02:01-06
+1035	0:0:0:0:0:0:0:1	wtellis	/	2011-01-19 20:32:40-06
+1036	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-20 09:16:53-06
+1037	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-20 09:17:03-06
+1038	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-20 09:17:04-06
+1039	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-20 09:17:36-06
+1040	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-20 09:17:41-06
+1041	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=83	2011-01-20 09:17:44-06
+1042	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-20 09:17:49-06
+1043	0:0:0:0:0:0:0:1	wtellis	/	2011-01-20 09:42:31-06
+1044	0:0:0:0:0:0:0:1	wtellis	/	2011-01-20 09:42:38-06
+1045	0:0:0:0:0:0:0:1	wtellis	/	2011-01-20 10:28:44-06
+1046	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-20 10:28:50-06
+1047	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84	2011-01-20 10:28:54-06
+1048	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=88	2011-01-20 10:28:57-06
+1049	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-20 10:28:58-06
+1050	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=g%2FWL%2FlH%2BLJFV1pHoNmU3ICR1xsjoueZYu91TV%2BJ0JeA%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-20 10:29:12-06
+1051	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=g%2FWL%2FlH%2BLJFV1pHoNmU3ICR1xsjoueZYu91TV%2BJ0JeA%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-20 10:29:13-06
+1052	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84&token=pacjpjj6	2011-01-20 10:31:39-06
+1053	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=pacjpjj6	2011-01-20 10:31:40-06
+1054	0:0:0:0:0:0:0:1	wtellis	/	2011-01-21 10:18:24-06
+1055	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-21 10:18:30-06
+1056	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84	2011-01-21 10:18:33-06
+1057	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=88	2011-01-21 10:18:36-06
+1059	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=%2FVDRFePuPw4lY9MHZ3uhYvchywukq8k7Q1AQ64wknGQ%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-21 10:19:58-06
+1060	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=%2FVDRFePuPw4lY9MHZ3uhYvchywukq8k7Q1AQ64wknGQ%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-21 10:19:58-06
+1061	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84&token=1sjnjrea	2011-01-21 10:20:08-06
+1062	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=1sjnjrea	2011-01-21 10:20:09-06
+1063	0:0:0:0:0:0:0:1	wtellis	/	2011-01-21 10:44:42-06
+1064	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-21 10:44:48-06
+1065	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84	2011-01-21 10:44:51-06
+1066	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=88	2011-01-21 10:44:55-06
+1067	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-21 10:44:57-06
+1068	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=%2FVDRFePuPw4lY9MHZ3uhYvchywukq8k7Q1AQ64wknGQ%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=%E2%97%8F%E2%97%8F%E2%97%8F%E2%97%8F%E2%97%8F%E2%97%8F%E2%97%8F%E2%97%8F&email=wyatt.tellis%40ucsf.edu	2011-01-21 10:45:11-06
+1069	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=%2FVDRFePuPw4lY9MHZ3uhYvchywukq8k7Q1AQ64wknGQ%3D&exam_ids%5B%5D=88&patient_password=cal4ever&patient_password_confirmation=cal4ever&email=wyatt.tellis%40ucsf.edu	2011-01-21 10:45:22-06
+1070	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=%2FVDRFePuPw4lY9MHZ3uhYvchywukq8k7Q1AQ64wknGQ%3D&exam_ids%5B%5D=88&patient_password=cal4ever&patient_password_confirmation=cal4ever&email=wyatt.tellis%40ucsf.edu	2011-01-21 10:45:23-06
+1071	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84&token=if5kpth7	2011-01-21 10:45:25-06
+1072	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=if5kpth7	2011-01-21 10:45:27-06
+1073	0:0:0:0:0:0:0:1	wtellis	/	2011-01-22 09:22:23-06
+1074	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-22 09:22:29-06
+1075	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80	2011-01-22 09:22:32-06
+1076	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-22 09:22:45-06
+1077	0:0:0:0:0:0:0:1	wtellis	/	2011-01-22 09:22:46-06
+1078	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-22 09:22:54-06
+1079	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80	2011-01-22 09:22:56-06
+1080	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-22 09:22:58-06
+1081	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-22 09:23:04-06
+1082	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=HLm0UNmCjmGOHWB78t6sNR4%2Bd32bRBdgLI4bwQLXddk%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-22 09:23:18-06
+1083	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=HLm0UNmCjmGOHWB78t6sNR4%2Bd32bRBdgLI4bwQLXddk%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-22 09:23:19-06
+1084	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=mzz3zf5x	2011-01-22 09:23:21-06
+1085	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=mzz3zf5x	2011-01-22 09:23:22-06
+1086	0:0:0:0:0:0:0:1	wtellis	/	2011-01-24 11:53:29-06
+1087	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-24 11:53:41-06
+1088	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=82&commit=Yes	2011-01-24 11:54:16-06
+1089	0:0:0:0:0:0:0:1	wtellis	/exams	2011-01-24 11:54:17-06
+1090	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=86	2011-01-24 11:54:20-06
+1091	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-24 11:54:21-06
+1092	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Vo7S6QPXdvpt2UnEJfcU1aROSePOUoFbBV4OKAEy7cc%3D&exam_ids%5B%5D=86&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-24 11:54:34-06
+1093	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=Vo7S6QPXdvpt2UnEJfcU1aROSePOUoFbBV4OKAEy7cc%3D&exam_ids%5B%5D=86&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-24 11:54:35-06
+1094	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=82&token=nyf9xf3a	2011-01-24 11:54:41-06
+1095	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=nyf9xf3a	2011-01-24 11:54:42-06
+1096	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:19:05-06
+1097	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:19:17-06
+1098	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80	2011-01-25 13:19:28-06
+1099	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-25 13:19:31-06
+1100	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:19:32-06
+1101	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:19:39-06
+1102	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=83	2011-01-25 13:19:41-06
+1103	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-25 13:19:43-06
+1104	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:19:43-06
+1105	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:19:48-06
+1106	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=82	2011-01-25 13:19:51-06
+1107	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-25 13:19:53-06
+1108	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:19:53-06
+1109	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:19:56-06
+1110	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-25 13:20:11-06
+1111	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-25 13:20:14-06
+1112	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:20:14-06
+1113	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:20:21-06
+1114	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:21:20-06
+1115	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:21:23-06
+1116	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=81&commit=Yes	2011-01-25 13:21:34-06
+1117	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-25 13:21:34-06
+1118	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=85	2011-01-25 13:21:40-06
+1119	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-25 13:21:44-06
+1120	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-25 13:21:47-06
+1121	0:0:0:0:0:0:0:1	mwarnock	/exams/delete_from_cart?id=85	2011-01-25 13:21:49-06
+1122	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-25 13:21:51-06
+1123	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=85	2011-01-25 13:23:51-06
+1124	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-25 13:23:53-06
+1125	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=85&patient_password=asdf&patient_password_confirmation=asdf&email=mwarnock%40umm.edu	2011-01-25 13:24:29-06
+1126	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=85&patient_password=asdf&patient_password_confirmation=asdf&email=mwarnock%40umm.edu	2011-01-25 13:24:30-06
+1127	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81&token=xfp4ks59	2011-01-25 13:24:36-06
+1128	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=xfp4ks59	2011-01-25 13:24:36-06
+1129	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-25 13:25:07-06
+1130	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:25:08-06
+1131	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:25:20-06
+1132	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=81	2011-01-25 13:25:22-06
+1133	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=85	2011-01-25 13:25:47-06
+1134	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-25 13:26:11-06
+1135	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-25 13:27:33-06
+1136	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-25 13:34:33-06
+1137	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-25 13:34:33-06
+1138	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-25 13:36:18-06
+1139	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=80&commit=Yes	2011-01-25 13:36:21-06
+1140	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-25 13:36:22-06
+1141	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=84	2011-01-25 13:36:24-06
+1142	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-25 13:36:25-06
+1143	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-25 13:36:29-06
+1144	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-25 13:36:30-06
+1145	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80&token=89u3yfz8	2011-01-25 13:36:31-06
+1146	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=89u3yfz8	2011-01-25 13:36:32-06
+1147	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80&token=89u3yfz8	2011-01-25 13:37:06-06
+1148	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=89u3yfz8	2011-01-25 13:37:08-06
+1149	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-26 13:46:11-06
+1150	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-26 13:46:16-06
+1151	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=83&commit=Yes	2011-01-26 13:46:18-06
+1152	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-26 13:46:19-06
+1153	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=87	2011-01-26 13:46:23-06
+1154	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-26 13:46:25-06
+1155	0:0:0:0:0:0:0:1	mwarnock	/exams/delete_from_cart?id=87	2011-01-26 13:46:32-06
+1156	0:0:0:0:0:0:0:1	mwarnock	/exams/empty_cart	2011-01-26 13:46:34-06
+1157	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-26 13:46:35-06
+1158	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-26 13:46:37-06
+1159	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-26 13:46:38-06
+1160	0:0:0:0:0:0:0:1	mwarnock	/patients/search?mrn=0&rsna_id=&patient_name=&search_type=advanced	2011-01-26 13:46:45-06
+1161	0:0:0:0:0:0:0:1	mwarnock	/patients/search?mrn=&rsna_id=asdf&patient_name=&search_type=advanced	2011-01-26 13:47:31-06
+1162	0:0:0:0:0:0:0:1	mwarnock	/patients/search?mrn=asdf&rsna_id=&patient_name=&search_type=advanced	2011-01-26 13:47:42-06
+1163	0:0:0:0:0:0:0:1	mwarnock	/patients/search?mrn=&rsna_id=&patient_name=a&search_type=advanced	2011-01-26 13:47:48-06
+1164	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-26 13:47:57-06
+1165	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-26 13:51:20-06
+1166	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-26 13:51:40-06
+1167	0:0:0:0:0:0:0:1	mwarnock	/patients/search?mrn=12&patient_name=&search_type=advanced	2011-01-26 13:52:06-06
+1168	0:0:0:0:0:0:0:1	mwarnock	/patients/search?mrn=&patient_name=one&search_type=advanced	2011-01-26 13:52:16-06
+1169	0:0:0:0:0:0:0:1	wtellis	/	2011-01-26 21:58:28-06
+1170	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-26 21:58:34-06
+1171	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-26 22:02:52-06
+1172	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-01-26 22:04:16-06
+1173	0:0:0:0:0:0:0:1	wtellis	/admin/audit_filter?filter=test	2011-01-26 22:05:08-06
+1174	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-26 22:05:18-06
+1175	0:0:0:0:0:0:0:1	wtellis	/	2011-01-26 22:05:18-06
+1176	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-26 22:05:22-06
+1177	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=80&commit=Yes	2011-01-26 22:05:29-06
+1178	0:0:0:0:0:0:0:1	wtellis	/exams	2011-01-26 22:05:29-06
+1179	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=84	2011-01-26 22:05:38-06
+1180	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-26 22:05:41-06
+1181	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Tx%2F2opSQ6arfCtPF1l8%2BxdJlB%2FZqe57aAKET3XEOxE0%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-26 22:06:03-06
+1182	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=Tx%2F2opSQ6arfCtPF1l8%2BxdJlB%2FZqe57aAKET3XEOxE0%3D&exam_ids%5B%5D=84&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-26 22:06:04-06
+1183	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=80&token=5jgpurr4	2011-01-26 22:06:06-06
+1184	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=5jgpurr4	2011-01-26 22:06:07-06
+1185	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-26 22:07:39-06
+1186	0:0:0:0:0:0:0:1	wtellis	/	2011-01-26 22:07:40-06
+1187	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-26 22:07:45-06
+1188	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-26 22:07:51-06
+1189	0:0:0:0:0:0:0:1	wtellis	/	2011-01-26 22:10:49-06
+1190	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-01-26 22:10:55-06
+1191	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=82&commit=Yes	2011-01-26 22:10:59-06
+1192	0:0:0:0:0:0:0:1	wtellis	/exams	2011-01-26 22:11:00-06
+1193	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=86	2011-01-26 22:11:03-06
+1194	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-26 22:11:05-06
+1195	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Tx%2F2opSQ6arfCtPF1l8%2BxdJlB%2FZqe57aAKET3XEOxE0%3D&exam_ids%5B%5D=86&patient_password=test4567&patient_password_confirmation=test4567&email=wyatt.tellis%40ucsf.edu	2011-01-26 22:11:32-06
+1196	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=Tx%2F2opSQ6arfCtPF1l8%2BxdJlB%2FZqe57aAKET3XEOxE0%3D&exam_ids%5B%5D=86&patient_password=test4567&patient_password_confirmation=test4567&email=wyatt.tellis%40ucsf.edu	2011-01-26 22:11:34-06
+1197	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=82&token=u9nx8oj3	2011-01-26 22:11:36-06
+1198	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=u9nx8oj3	2011-01-26 22:11:38-06
+1199	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 08:20:17-06
+1200	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-27 08:20:21-06
+1201	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80	2011-01-27 08:20:32-06
+1202	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=84	2011-01-27 08:20:37-06
+1203	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-27 08:20:38-06
+1204	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-27 08:20:47-06
+1205	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-27 08:20:48-06
+1206	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 08:50:13-06
+1207	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=one&search_type=simple	2011-01-27 08:50:18-06
+1208	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=80&commit=Yes	2011-01-27 08:50:23-06
+1209	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-27 08:50:24-06
+1210	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=84	2011-01-27 08:50:26-06
+1211	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-27 08:50:27-06
+1212	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-27 08:50:40-06
+1213	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-27 08:50:41-06
+1214	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80&token=az8xj31c	2011-01-27 08:52:03-06
+1215	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=az8xj31c	2011-01-27 08:52:04-06
+1216	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-27 08:52:10-06
+1217	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 08:52:11-06
+1218	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=large&search_type=simple	2011-01-27 08:52:14-06
+1219	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=82&commit=Yes	2011-01-27 08:52:20-06
+1220	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-27 08:52:20-06
+1221	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=86	2011-01-27 08:52:22-06
+1222	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-27 08:52:24-06
+1223	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=86&patient_password=password&patient_password_confirmation=password&email=	2011-01-27 08:52:34-06
+1224	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=rZg%2F0t31kYwYthCwfGp5sD69GCwVxF1t704ZcA5NYgw%3D&exam_ids%5B%5D=86&patient_password=password&patient_password_confirmation=password&email=	2011-01-27 08:52:35-06
+1225	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=82&token=fqzht8ue	2011-01-27 08:54:38-06
+1226	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=fqzht8ue	2011-01-27 08:54:39-06
+1227	0:0:0:0:0:0:0:1	wtellis	/	2011-01-27 09:35:59-06
+1228	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=MRI&search_type=simple	2011-01-27 09:36:04-06
+1229	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=86&commit=Yes	2011-01-27 09:36:10-06
+1230	0:0:0:0:0:0:0:1	wtellis	/exams	2011-01-27 09:36:11-06
+1231	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=90	2011-01-27 09:38:28-06
+1232	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-27 09:38:30-06
+1233	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=0DS7AbXrdl%2B02B0eUFY8KSgbdsD4HSkZSHMHQVt1ZOQ%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-27 09:38:45-06
+1234	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=0DS7AbXrdl%2B02B0eUFY8KSgbdsD4HSkZSHMHQVt1ZOQ%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-27 09:38:46-06
+1235	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=86&token=83u7ri5y	2011-01-27 09:38:49-06
+1236	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=83u7ri5y	2011-01-27 09:38:51-06
+1237	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-01-27 09:41:16-06
+1238	0:0:0:0:0:0:0:1	wtellis	/	2011-01-27 09:41:17-06
+1239	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-01-27 09:41:21-06
+1240	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=87&commit=Yes	2011-01-27 09:41:36-06
+1241	0:0:0:0:0:0:0:1	wtellis	/exams	2011-01-27 09:41:37-06
+1242	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=91	2011-01-27 09:41:43-06
+1243	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-27 09:41:45-06
+1244	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=0DS7AbXrdl%2B02B0eUFY8KSgbdsD4HSkZSHMHQVt1ZOQ%3D&exam_ids%5B%5D=91&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-27 09:42:01-06
+1245	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=0DS7AbXrdl%2B02B0eUFY8KSgbdsD4HSkZSHMHQVt1ZOQ%3D&exam_ids%5B%5D=91&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-01-27 09:42:02-06
+1246	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=87&token=cu9mafj1	2011-01-27 09:42:04-06
+1247	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=cu9mafj1	2011-01-27 09:42:06-06
+1248	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-27 12:11:56-06
+1249	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 12:11:57-06
+1250	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=test&search_type=simple	2011-01-27 12:12:07-06
+1251	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=86	2011-01-27 12:12:13-06
+1252	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-27 12:12:18-06
+1253	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 12:12:18-06
+1254	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-27 12:12:21-06
+1255	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80	2011-01-27 12:12:36-06
+1256	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-27 12:12:38-06
+1257	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 12:12:39-06
+1258	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-27 12:12:41-06
+1259	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=87	2011-01-27 12:12:43-06
+1260	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-27 12:12:46-06
+1261	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 12:12:46-06
+1262	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-27 12:12:49-06
+1263	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-28 12:40:30-06
+1264	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-28 12:40:43-06
+1265	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=80&commit=Yes	2011-01-28 12:41:09-06
+1266	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-28 12:41:10-06
+1267	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-28 12:41:32-06
+1268	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-28 12:41:33-06
+1269	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-28 12:41:36-06
+1270	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80	2011-01-28 12:41:41-06
+1271	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=84	2011-01-28 12:42:01-06
+1272	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-28 12:42:11-06
+1426	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-15 08:24:36-06
+1273	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=K0Izzah4cQ7PTKk9BzqOudML%2BsaWEHkdiM%2FnYfL0w4k%3D&exam_ids%5B%5D=84&patient_password=monkey&patient_password_confirmation=monkey&email=mwarnock%40umm.edu	2011-01-28 12:42:50-06
+1274	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=K0Izzah4cQ7PTKk9BzqOudML%2BsaWEHkdiM%2FnYfL0w4k%3D&exam_ids%5B%5D=84&patient_password=monkey&patient_password_confirmation=monkey&email=mwarnock%40umm.edu	2011-01-28 12:42:50-06
+1275	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80&token=77us6ohq	2011-01-28 12:43:06-06
+1276	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=77us6ohq	2011-01-28 12:43:07-06
+1277	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-28 12:43:51-06
+1278	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-28 12:43:52-06
+1279	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-28 12:44:05-06
+1280	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80	2011-01-28 12:44:08-06
+1281	0:0:0:0:0:0:0:1	mwarnock	/exams/add_to_cart?id=84	2011-01-28 12:44:10-06
+1282	0:0:0:0:0:0:0:1	mwarnock	/exams/show_cart	2011-01-28 12:44:11-06
+1283	0:0:0:0:0:0:0:1	mwarnock	/exams/validate_cart?authenticity_token=K0Izzah4cQ7PTKk9BzqOudML%2BsaWEHkdiM%2FnYfL0w4k%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-28 12:44:16-06
+1284	0:0:0:0:0:0:0:1	mwarnock	/exams/send_cart?authenticity_token=K0Izzah4cQ7PTKk9BzqOudML%2BsaWEHkdiM%2FnYfL0w4k%3D&exam_ids%5B%5D=84&patient_password=asdf&patient_password_confirmation=asdf&email=	2011-01-28 12:44:16-06
+1285	0:0:0:0:0:0:0:1	mwarnock	/exams?patient_id=80&token=8bi6k4m1	2011-01-28 12:44:17-06
+1286	0:0:0:0:0:0:0:1	mwarnock	/exams/print_patient_info?token=8bi6k4m1	2011-01-28 12:44:18-06
+1287	0:0:0:0:0:0:0:1	sglanger	/	2011-02-01 09:06:54-06
+1288	0:0:0:0:0:0:0:1	sglanger	/patients/new	2011-02-01 09:06:58-06
+1289	0:0:0:0:0:0:0:1	sglanger	/	2011-02-01 09:06:59-06
+1290	0:0:0:0:0:0:0:1	mwarnock	/	2011-02-02 12:13:49-06
+1291	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-02-02 12:13:52-06
+1292	0:0:0:0:0:0:0:1	wtellis	/	2011-02-03 18:33:03-06
+1293	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-02-03 18:33:10-06
+1294	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=87&commit=Yes	2011-02-03 18:33:15-06
+1295	0:0:0:0:0:0:0:1	wtellis	/exams	2011-02-03 18:33:16-06
+1296	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=91	2011-02-03 18:33:19-06
+1297	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-03 18:33:21-06
+1298	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=CDwYao9lGpKSkB1UDxjJi0%2B6Ne32S9oId3VW5D16czQ%3D&exam_ids%5B%5D=91&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-03 18:33:32-06
+1299	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=CDwYao9lGpKSkB1UDxjJi0%2B6Ne32S9oId3VW5D16czQ%3D&exam_ids%5B%5D=91&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-03 18:33:33-06
+1300	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=87&token=y5pgg8pk	2011-02-03 18:33:36-06
+1301	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=y5pgg8pk	2011-02-03 18:33:38-06
+1302	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-03 18:42:01-06
+1303	0:0:0:0:0:0:0:1	wtellis	/	2011-02-03 18:42:02-06
+1304	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-02-03 18:42:07-06
+1305	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=87	2011-02-03 18:42:12-06
+1306	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=91	2011-02-03 18:42:15-06
+1307	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-03 18:42:17-06
+1308	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=CDwYao9lGpKSkB1UDxjJi0%2B6Ne32S9oId3VW5D16czQ%3D&exam_ids%5B%5D=91&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-03 18:42:30-06
+1309	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=CDwYao9lGpKSkB1UDxjJi0%2B6Ne32S9oId3VW5D16czQ%3D&exam_ids%5B%5D=91&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-03 18:42:30-06
+1310	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=87&token=67bpspoh	2011-02-03 18:42:32-06
+1311	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=67bpspoh	2011-02-03 18:42:34-06
+1312	0:0:0:0:0:0:0:1	mwarnock	/	2011-02-08 11:44:21-06
+1313	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-02-08 11:45:10-06
+1314	0:0:0:0:0:0:0:1	wtellis	/	2011-02-08 11:51:38-06
+1315	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-02-08 13:17:46-06
+1316	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-02-08 13:26:49-06
+1317	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=86&commit=Yes	2011-02-08 13:27:05-06
+1318	0:0:0:0:0:0:0:1	wtellis	/exams	2011-02-08 13:27:07-06
+1319	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=90	2011-02-08 13:27:11-06
+1320	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-08 13:27:14-06
+1321	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=vHMe%2Finlr%2BwhjXVTUZVRZrFFUK0sDbT1V4Wr2JCX3Ao%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-08 13:27:27-06
+1322	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=vHMe%2Finlr%2BwhjXVTUZVRZrFFUK0sDbT1V4Wr2JCX3Ao%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-08 13:27:29-06
+1323	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=86&token=3hb459rn	2011-02-08 13:28:11-06
+1324	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=3hb459rn	2011-02-08 13:28:13-06
+1325	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-08 13:35:19-06
+1326	0:0:0:0:0:0:0:1	wtellis	/	2011-02-08 13:35:20-06
+1327	172.20.175.67	sglanger	/	2011-02-08 13:36:48-06
+1328	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-08 13:43:55-06
+1329	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-08 13:44:05-06
+1330	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-08 13:45:42-06
+1331	0:0:0:0:0:0:0:1	wtellis	/	2011-02-08 13:45:42-06
+1332	0:0:0:0:0:0:0:1	wtellis	/	2011-02-08 13:53:50-06
+1333	0:0:0:0:0:0:0:1	sglanger	/	2011-02-08 13:59:24-06
+1334	0:0:0:0:0:0:0:1	sglanger	/patients/new	2011-02-08 13:59:33-06
+1335	0:0:0:0:0:0:0:1	sglanger	/	2011-02-08 13:59:33-06
+1336	0:0:0:0:0:0:0:1	sglanger	/admin/audit	2011-02-08 13:59:37-06
+1337	0:0:0:0:0:0:0:1	sglanger	/admin/audit	2011-02-08 13:59:52-06
+1338	0:0:0:0:0:0:0:1	wtellis	/	2011-02-08 14:00:05-06
+1339	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-02-08 14:00:24-06
+1340	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-08 14:01:28-06
+1341	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=86&commit=Yes	2011-02-08 14:02:09-06
+1342	0:0:0:0:0:0:0:1	wtellis	/exams	2011-02-08 14:02:10-06
+1343	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=90	2011-02-08 14:02:46-06
+1344	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-08 14:02:56-06
+1345	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=E4AHJVKFaZlYwLrW4yJwT3RTShJ8YqFP%2B5OIrhC2zJk%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-08 14:07:17-06
+1346	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=E4AHJVKFaZlYwLrW4yJwT3RTShJ8YqFP%2B5OIrhC2zJk%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=wyatt.tellis%40ucsf.edu	2011-02-08 14:07:18-06
+1347	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=86&token=buc1bco1	2011-02-08 14:07:33-06
+1348	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=buc1bco1	2011-02-08 14:07:35-06
+1349	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-08 14:08:35-06
+1350	0:0:0:0:0:0:0:1	wtellis	/	2011-02-08 14:08:36-06
+1351	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-08 14:14:41-06
+1352	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-08 14:14:46-06
+1353	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=15125	2011-02-08 14:15:04-06
+1354	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-08 14:15:56-06
+1355	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-08 14:20:11-06
+1356	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-02-08 14:25:11-06
+1357	134.192.134.129	mwarnock	/	2011-02-08 14:26:45-06
+1358	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-02-08 14:26:49-06
+1359	134.192.134.129	mwarnock	/tail	2011-02-08 14:27:00-06
+1360	134.192.134.129	mwarnock	/tail	2011-02-08 14:27:43-06
+1361	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-02-08 14:29:50-06
+1362	0:0:0:0:0:0:0:1	mwarnock	/	2011-02-08 14:32:48-06
+1363	0:0:0:0:0:0:0:1	mwarnock	/admin/audit	2011-02-08 14:33:09-06
+1364	134.192.135.254	mwarnock	/tail	2011-02-08 14:33:11-06
+1365	134.192.134.129	mwarnock	/patients/new	2011-02-08 14:35:53-06
+1366	0:0:0:0:0:0:0:1	mwarnock	/	2011-02-08 14:35:54-06
+1367	0:0:0:0:0:0:0:1	mwarnock	/	2011-02-10 09:48:50-06
+1368	134.192.134.76	mwarnock	/admin/audit	2011-02-10 09:50:31-06
+1369	134.192.134.76	mwarnock	/tail	2011-02-10 09:50:58-06
+1370	0:0:0:0:0:0:0:1	wtellis	/	2011-02-11 15:58:57-06
+1371	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=test&search_type=simple	2011-02-11 15:59:02-06
+1372	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=86	2011-02-11 15:59:06-06
+1373	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=90	2011-02-11 15:59:10-06
+1374	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-11 15:59:12-06
+1375	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=4%2Fs2AwxVbbayS%2B%2F5Aj9zB%2FQKvIrHUxjmD6eqd5VJgM8%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-11 15:59:26-06
+1376	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=4%2Fs2AwxVbbayS%2B%2F5Aj9zB%2FQKvIrHUxjmD6eqd5VJgM8%3D&exam_ids%5B%5D=90&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-11 15:59:27-06
+1377	0:0:0:0:0:0:0:1	sglanger	/admin/audit	2011-02-14 08:58:24-06
+1378	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-14 08:58:45-06
+1379	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-14 08:59:50-06
+1380	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-02-14 15:12:56-06
+1381	0:0:0:0:0:0:0:1	mwarnock	/tail?log=transfer-content	2011-02-14 15:13:10-06
+1382	0:0:0:0:0:0:0:1	mwarnock	/tail?log=prepare-content	2011-02-14 15:13:13-06
+1383	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-02-14 15:16:07-06
+1384	0:0:0:0:0:0:0:1	mwarnock	/tail	2011-02-14 15:17:51-06
+1385	0:0:0:0:0:0:0:1	mwarnock	/tail?log=prepare-content	2011-02-14 15:18:09-06
+1386	0:0:0:0:0:0:0:1	wtellis	/	2011-02-14 23:53:37-06
+1387	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-14 23:53:41-06
+1388	0:0:0:0:0:0:0:1	wtellis	/tail	2011-02-14 23:53:47-06
+1389	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-14 23:54:59-06
+1390	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-14 23:55:19-06
+1391	0:0:0:0:0:0:0:1	wtellis	/tail	2011-02-14 23:55:22-06
+1392	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-14 23:55:25-06
+1393	0:0:0:0:0:0:0:1	wtellis	/	2011-02-14 23:55:26-06
+1394	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-02-14 23:55:32-06
+1395	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=82&commit=Yes	2011-02-14 23:55:41-06
+1396	0:0:0:0:0:0:0:1	wtellis	/exams	2011-02-14 23:55:42-06
+1397	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=86	2011-02-14 23:55:46-06
+1398	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-14 23:55:49-06
+1399	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=r2Gi6ZSQC8wuOP6gizpk%2FF45CmFYaBf7MvgxsHRxP8Q%3D&exam_ids%5B%5D=86&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-14 23:56:01-06
+1400	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=r2Gi6ZSQC8wuOP6gizpk%2FF45CmFYaBf7MvgxsHRxP8Q%3D&exam_ids%5B%5D=86&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-14 23:56:02-06
+1401	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=82&token=jz576uap	2011-02-14 23:56:06-06
+1402	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=jz576uap	2011-02-14 23:56:08-06
+1403	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-14 23:56:40-06
+1404	0:0:0:0:0:0:0:1	wtellis	/	2011-02-15 08:15:19-06
+1405	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-15 08:15:24-06
+1406	0:0:0:0:0:0:0:1	wtellis	/admin/audit_details?id=15169	2011-02-15 08:17:30-06
+1407	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-15 08:23:04-06
+1408	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-15 08:23:08-06
+1409	0:0:0:0:0:0:0:1	wtellis	/	2011-02-15 08:23:08-06
+1410	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-02-15 08:23:15-06
+1411	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=83&commit=Yes	2011-02-15 08:23:20-06
+1412	0:0:0:0:0:0:0:1	wtellis	/exams	2011-02-15 08:23:21-06
+1413	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=87	2011-02-15 08:23:24-06
+1414	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-02-15 08:23:28-06
+1415	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=X9cew6KbN7e6fKUu2KQMmjtCZ2MUqPdgnV18cfcALd8%3D&exam_ids%5B%5D=87&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-15 08:23:42-06
+1416	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=X9cew6KbN7e6fKUu2KQMmjtCZ2MUqPdgnV18cfcALd8%3D&exam_ids%5B%5D=87&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-15 08:23:42-06
+1417	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=83&token=9mhdwwcm	2011-02-15 08:23:44-06
+1418	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=9mhdwwcm	2011-02-15 08:23:46-06
+1419	0:0:0:0:0:0:0:1	wtellis	/admin/audit	2011-02-15 08:24:12-06
+1420	0:0:0:0:0:0:0:1	wtellis	/patients/new	2011-02-15 08:24:18-06
+1421	0:0:0:0:0:0:0:1	wtellis	/	2011-02-15 08:24:19-06
+1422	0:0:0:0:0:0:0:1	wtellis	/patients/search?search=large&search_type=simple	2011-02-15 08:24:25-06
+1423	0:0:0:0:0:0:0:1	wtellis	/patients/record_consent?patient_id=84&commit=Yes	2011-02-15 08:24:30-06
+1424	0:0:0:0:0:0:0:1	wtellis	/exams	2011-02-15 08:24:31-06
+1425	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=88	2011-02-15 08:24:34-06
+1427	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=X9cew6KbN7e6fKUu2KQMmjtCZ2MUqPdgnV18cfcALd8%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-15 08:24:46-06
+1428	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=X9cew6KbN7e6fKUu2KQMmjtCZ2MUqPdgnV18cfcALd8%3D&exam_ids%5B%5D=88&patient_password=test1234&patient_password_confirmation=test1234&email=	2011-02-15 08:24:47-06
+1429	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=84&token=hwp6u73s	2011-02-15 08:24:49-06
+1430	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=hwp6u73s	2011-02-15 08:24:50-06
+1431	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-15 08:28:20-06
+1432	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-15 08:58:23-06
+1433	0:0:0:0:0:0:0:1	sglanger	/tail?log=prepare-content	2011-02-15 08:58:51-06
+1434	0:0:0:0:0:0:0:1	sglanger	/admin/audit	2011-02-15 09:06:26-06
+1435	0:0:0:0:0:0:0:1	sglanger	/tail	2011-02-15 09:10:56-06
+1436	0:0:0:0:0:0:0:1	sglanger	/tail?log=prepare-content	2011-02-15 09:15:50-06
+1437	0:0:0:0:0:0:0:1	sglanger	/admin/audit	2011-02-16 08:00:29-06
+1438	0:0:0:0:0:0:0:1	sglanger	/admin/audit_details?id=15185	2011-02-16 08:01:19-06
+1439	0:0:0:0:0:0:0:1	sglanger	/	2011-02-16 13:11:49-06
+1440	0:0:0:0:0:0:0:1	sglanger	/admin/audit	2011-02-16 13:11:55-06
 \.
 
 
@@ -3937,47 +2234,12 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 -- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, security_pin, email_address, modified_date, delay_in_hrs) FROM stdin;
-18	22	4	\N	wyatt.tellis@ucsf.edu	2010-09-28 13:33:18.509-05	72
-19	22	4	\N	wyatt.tellis@ucsf.edu	2010-10-04 17:16:52.477-05	72
-20	31	4	\N	wyatt.tellis@ucsf.edu	2010-10-04 17:17:52.218-05	72
-21	19	4	\N	\N	2010-10-08 18:35:11.189297-05	72
-22	37	4	\N	wyatt.tellis@ucsf.edu	2010-10-11 13:21:56.357-05	72
-23	42	7	\N	mdaly@umm.edu	2010-10-13 10:14:51.061-05	72
-24	43	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 12:40:54.463-05	72
-25	47	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 13:52:20.428-05	72
-26	43	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 14:00:01.121-05	72
-27	48	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 14:11:49.571-05	72
-28	49	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 15:19:51.487-05	72
-29	50	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 18:48:30.689-05	72
-30	51	4	\N	wyatt.tellis@ucsf.edu	2010-10-13 18:59:07.916-05	72
-31	52	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 10:48:12.36-05	72
-32	53	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 13:11:30.597-05	72
-33	54	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 13:22:31.718-05	72
-34	55	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 14:54:05.182-05	72
-35	56	4	\N	wyatt.tellis@ucsf.edu	2010-10-14 15:43:03.094-05	72
-36	57	9	\N	smoore@wustl.edu	2010-10-14 17:00:16.367-05	72
-37	58	9	\N	smoore@wustl.edu	2010-10-14 17:06:26.78-05	72
-38	59	9	\N	smoore@wustl.edu	2010-10-14 17:23:48.224-05	72
-39	60	4	\N	wyatt.tellis@ucsf.edu	2010-10-15 16:34:15.916-05	72
-40	61	4	\N	wyatt.tellis@ucsf.edu	2010-10-15 16:42:01.862-05	72
-41	62	4	\N	wyatt.tellis@ucsf.edu	2010-10-19 13:40:25.65-05	72
-42	63	9	\N	smoore@wustl.edu	2010-10-20 09:05:39.038-05	72
-43	64	9	\N	smoore@wustl.edu	2010-10-20 09:14:25.248-05	72
-44	65	9	\N	smoore@wustl.edu	2010-10-20 09:33:05.617-05	72
-45	66	9	\N	smoore@wustl.edu	2010-10-20 10:09:53.406-05	72
-46	67	9	\N	smoore@wustl.edu	2010-10-20 22:14:51.002-05	72
-47	68	9	\N	smoore@wustl.edu	2010-10-20 22:28:20.517-05	72
-48	69	9	\N	smoore@wustl.edu	2010-10-20 23:06:43.881-05	72
-49	70	9	\N	smoore@wustl.edu	2010-10-20 23:14:26.015-05	72
-50	71	9	\N	smoore@wustl.edu	2010-10-20 23:34:03.854-05	72
-51	72	9	\N	smoore@wustl.edu	2010-10-20 23:50:04.246-05	72
-52	73	9	\N	smoore@wustl.edu	2010-10-21 16:42:26.281-05	72
-53	74	9	\N	smoore@wustl.edu	2010-10-21 16:54:25.291-05	72
-54	75	9	\N	smoore@wustl.edu	2010-10-21 21:09:36.516-05	72
-55	76	9	\N	smoore@wustl.edu	2010-10-21 21:56:34.44-05	72
-56	77	9	\N	smoore@wustl.edu	2010-10-21 22:18:06.901-05	72
-57	78	9	\N	smoore@wustl.edu	2010-10-21 23:05:03.876-05	72
+COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id) FROM stdin;
+90	86	4	wyatt.tellis@ucsf.edu	2011-02-08 14:07:18.121-06	0	435307d2b6a07d37a1281310750b497b7dd2ef1b87812638cf99c69ac5371146
+91	86	4		2011-02-11 15:59:26.889-06	0	9356f1e9843f58eab5f6cbfcf863243f71d35edff6b70a343d50c8de173204a8
+92	82	4		2011-02-14 23:56:01.882-06	0	a18239492e00fb7f3fd4738205ac71876358671078f3c391a398d34eeec67242
+93	83	4		2011-02-15 08:23:42.805-06	0	523d842e47978f90f286ec84ee500694e65166aece9c2db9dc7ae5bcbb13974e
+94	84	4		2011-02-15 08:24:47.419-06	0	bf9d6c8bae4d2fe91f041f93e8bf8e8626c7904f2bc347879e971ba43bd65742
 \.
 
 
@@ -3986,49 +2248,11 @@ COPY job_sets (job_set_id, patient_id, user_id, security_pin, email_address, mod
 --
 
 COPY jobs (job_id, job_set_id, exam_id, report_id, document_id, modified_date) FROM stdin;
-41	41	66	\N	null	2010-10-19 13:55:33.225635-05
-19	21	19	\N	b830a013-04b1-44f1-86fd-c7e11f94ecbe	2010-10-11 17:20:12.747766-05
-25	27	49	\N	1.3.6.1.4.1.21367.100.168004102010224113.1286998206509	2010-10-13 14:30:08.727576-05
-23	26	43	\N	1.3.6.1.4.1.21367.100.106004174007169075.1286996965633	2010-10-13 14:09:28.701769-05
-24	27	48	\N	\N	2010-10-13 14:11:49.614-05
-33	33	58	\N	null	2010-10-19 17:01:32.234773-05
-28	29	53	\N	urn:uuid:53448240-933e-7490-6d76-0027522b5ef4	2010-10-13 20:21:17.478431-05
-16	18	22	\N	6e3894f5-326b-444f-b4af-38c07efae125	2010-10-08 10:33:14.29199-05
-17	19	22	\N	6e3894f5-326b-444f-b4af-38c07efae125	2010-10-08 10:33:14.29199-05
-18	20	31	\N	14cffe58-6b00-4abe-93a4-ae2bdb2b14c5	2010-10-08 11:56:05.148944-05
-30	30	55	\N	urn:uuid:52fd9f38-92f8-7490-dfcd-c227176569ea	2010-10-13 20:13:32.942254-05
-29	30	54	\N	urn:uuid:52b723aa-92b2-7490-d41d-9a84e0172c68	2010-10-13 20:05:51.003367-05
-31	31	56	\N	null	2010-10-14 13:05:13.567132-05
-32	32	57	\N	null	2010-10-14 13:12:18.340275-05
-39	39	64	\N	null	2010-10-19 19:23:52.502768-05
-20	23	42	\N	1.3.6.1.4.1.21367.100.160006072003081020.1286983430979	2010-10-13 10:23:53.382482-05
-40	40	65	\N	null	2010-10-19 19:26:42.89078-05
-42	42	67	\N	\N	2010-10-20 09:05:39.071-05
-22	25	47	\N	1.3.6.1.4.1.21367.100.115004093008108017.1286999655330	2010-10-13 14:54:17.610215-05
-43	43	68	\N	null	2010-10-20 09:19:39.61282-05
-34	34	59	\N	null	2010-10-14 15:26:44.060343-05
-26	28	50	\N	1.3.6.1.4.1.21367.100.101011182006325126.1287001470589	2010-10-13 15:24:32.916806-05
-27	28	51	\N	1.3.6.1.4.1.21367.100.147017189004182044.1287001470768	2010-10-13 15:24:33.352788-05
-44	44	69	\N	null	2010-10-20 09:35:21.45225-05
-45	45	70	\N	null	2010-10-20 10:11:37.78326-05
-46	46	71	\N	\N	2010-10-20 22:14:51.045-05
-47	47	71	\N	\N	2010-10-20 22:28:20.563-05
-48	47	72	\N	\N	2010-10-20 22:28:20.701-05
-49	48	73	\N	\N	2010-10-20 23:06:43.943-05
-50	49	74	\N	\N	2010-10-20 23:14:26.063-05
-51	50	75	\N	\N	2010-10-20 23:34:03.898-05
-52	51	76	\N	\N	2010-10-20 23:50:04.357-05
-35	35	60	\N	null	2010-10-14 16:52:02.176671-05
-36	36	61	\N	null	2010-10-14 17:01:33.111456-05
-21	24	43	\N	1.3.6.1.4.1.21367.100.174005056011278103.1287000880244	2010-10-13 15:14:43.68099-05
-37	37	62	\N	null	2010-10-14 17:17:17.528828-05
-53	52	77	\N	\N	2010-10-21 16:42:26.324-05
-54	53	78	\N	null	2010-10-21 16:54:47.902069-05
-38	38	63	\N	null	2010-10-15 12:18:07.710484-05
-55	54	79	\N	null	2010-10-21 21:44:09.875062-05
-56	55	80	\N	null	2010-10-21 21:57:27.207344-05
-57	56	81	\N	null	2010-10-21 22:19:09.664071-05
-58	57	82	\N	null	2010-10-21 23:06:07.332468-05
+91	90	90	\N	\N	2011-02-08 14:07:18.195-06
+92	91	90	\N	\N	2011-02-11 15:59:27.001-06
+93	92	86	\N	\N	2011-02-14 23:56:01.963-06
+94	93	87	\N	\N	2011-02-15 08:23:42.884-06
+95	94	88	\N	\N	2011-02-15 08:24:47.546-06
 \.
 
 
@@ -4041,125 +2265,18 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 
 
 --
--- Data for Name: patient_rsna_ids; Type: TABLE DATA; Schema: public; Owner: edge
---
-
-COPY patient_rsna_ids (map_id, rsna_id, patient_id, modified_date, patient_alias_lastname, patient_alias_firstname, registered) FROM stdin;
-40	0001-00069-123456	69	2010-10-20 23:07:04.996458-05	last	first	t
-41	0001-00070-123456	70	2010-10-20 23:15:06.979919-05	last	first	t
-42	0001-00071-123456	71	2010-10-20 23:35:12.878796-05	last	first	t
-43	0001-00072-123456	72	2010-10-20 23:51:28.536726-05	last	first	t
-44	0001-00073-123456	73	2010-10-21 16:41:47.996-05	last	first	f
-45	0001-00074-123456	74	2010-10-21 16:54:44.298632-05	last	first	t
-46	0001-00075-123456	75	2010-10-21 21:44:06.485628-05	last	first	t
-5	0001-00016-123456	16	2010-10-08 08:40:30.530843-05	last	first	f
-7	0001-00020-asdfad	20	2010-10-08 08:40:30.530843-05	last	first	f
-47	0001-00076-123456	76	2010-10-21 21:57:23.912483-05	last	first	t
-2	0001-00007-123456	7	2010-10-08 08:40:30.530843-05	last	first	f
-48	0001-00077-123456	77	2010-10-21 22:19:06.370174-05	last	first	t
-9	0001-00022-123456	22	2010-10-08 09:32:52.418788-05	last	first	t
-10	0001-00031-123456	31	2010-10-08 11:05:39.917927-05	last	first	t
-49	0001-00078-123456	78	2010-10-21 23:06:04.051559-05	last	first	t
-8	0001-00019-kjhlkj	19	2010-10-08 19:50:33.765973-05	last	first	t
-11	0001-00026-222222	26	2010-10-11 01:24:10.287-05	last	first	f
-12	0001-00023-123456	23	2010-10-11 10:09:57.723-05	last	first	f
-13	0001-00037-123456	37	2010-10-11 13:21:32.78-05	last	first	f
-14	0001-00042-123456	42	2010-10-13 10:20:21.31631-05	last	first	t
-15	0001-00043-123456	43	2010-10-13 13:20:29.139621-05	last	first	t
-17	0001-00044-123456	44	2010-10-13 14:05:01.116-05	last	first	f
-18	0001-00048-123456	48	2010-10-13 14:22:16.3613-05	last	first	t
-16	0001-00047-123456	47	2010-10-13 14:50:51.814238-05	last	first	t
-19	0001-00049-123456	49	2010-10-13 15:21:06.452098-05	last	first	t
-20	0001-00050-123456	50	2010-10-13 19:02:42.080275-05	last	first	t
-21	0001-00051-123456	51	2010-10-13 19:20:54.598033-05	last	first	t
-22	0001-00052-123456	52	2010-10-14 11:46:14.69329-05	last	first	t
-23	0001-00053-123456	53	2010-10-14 13:12:08.547994-05	last	first	t
-24	0001-00054-123456	54	2010-10-14 13:25:19.117921-05	last	first	t
-25	0001-00055-123456	55	2010-10-14 15:26:33.965238-05	last	first	t
-27	0001-00045-123456	45	2010-10-14 15:50:32.095-05	last	first	f
-26	0001-00056-123456	56	2010-10-14 15:56:15.018532-05	last	first	t
-28	0001-00057-123456	57	2010-10-14 17:01:22.982063-05	last	first	t
-29	0001-00058-123456	58	2010-10-14 17:17:07.241892-05	last	first	t
-30	0001-00059-123456	59	2010-10-14 17:27:14.185964-05	last	first	t
-31	0001-00060-123456	60	2010-10-15 16:53:29.772848-05	last	first	t
-32	0001-00061-123456	61	2010-10-15 17:17:25.055448-05	last	first	t
-33	0001-00062-123456	62	2010-10-19 13:55:29.179392-05	last	first	t
-34	0001-00063-123456	63	2010-10-20 09:07:24.585528-05	last	first	t
-35	0001-00064-123456	64	2010-10-20 09:19:36.027599-05	last	first	t
-36	0001-00065-123456	65	2010-10-20 09:35:18.050534-05	last	first	t
-37	0001-00066-123456	66	2010-10-20 10:11:34.318164-05	last	first	t
-38	0001-00067-123456	67	2010-10-20 22:17:32.366721-05	last	first	t
-39	0001-00068-123456	68	2010-10-20 22:45:44.461065-05	last	first	t
-\.
-
-
---
 -- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date) FROM stdin;
-43	764467765	TEST^TWENTY^	1900-01-01	M	534 Adams Lane	Atlanta	GA	30322	2010-10-13 12:40:11.115011-05
-65	225829605	Tue^Coneac^	1903-12-01	M	305 Madison Ave	Atlanta	GA	30319	2010-10-20 09:31:33.930709-05
-49	102335231	TEST^THIRTY^	1910-01-01	M	445 Maple Ave	Atlanta	GA	30329	2010-10-13 15:17:47.102842-05
-66	258122542	Tue^Conead^	1904-12-01	M	47 Oak St	Atlanta	GA	30319	2010-10-20 10:08:11.377089-05
-50	818731508	TEST^FORTY^	1920-01-01	M	287 Oak St	Atlanta	GA	30329	2010-10-13 18:47:56.218344-05
-44	731880094	Dean^Jimmy^	0101-12-31	M	764 Woodland Ave	Atlanta	GA	30317	2010-10-13 13:11:26.206926-05
-45	632406555	Dean^Jimmy^	1975-01-01	M	366 Chestnut St	Atlanta	GA	30317	2010-10-13 13:13:45.787163-05
-7	678188495	Doe^John	1963-02-08	M	BOX 0824 - MCB 300	San Francisco	CA	94143	2010-09-24 11:59:47.624073-05
-46	981912619	Doe^John^	0101-12-31	M	747 Elm St	Atlanta	GA	30319	2010-10-13 13:23:29.817733-05
-16	852215460	TEST^THREE^	1972-02-21	F	951 Cleveland Ave	Atlanta	GA	30317	2010-09-24 11:59:59.829309-05
-47	130224392	Wed^Ctwentyab^	1920-12-12	M	880 Birch Ave	Atlanta	GA	30322	2010-10-13 13:40:57.344826-05
-21	577900744	TEST^SIX^	1910-08-09	M	178 Madison Ave	Atlanta	GA	30317	2010-09-24 15:03:34.183316-05
-19	389321721	Moore^Ac^	1940-12-12	M	196 Rooselvelt Ave	Atlanta	GA	30317	2010-09-28 12:48:51.301545-05
-20	199710663	TEST^FIVE^	1977-02-08	F	903 Maple Ave	Atlanta	GA	30317	2010-09-28 12:48:59.052191-05
-22	683319969	TEST^SEVEN^	1976-11-08	M	114 Jefferson Ave	Atlanta	GA	30317	2010-09-28 13:28:29.154043-05
-23	818163599	Moore^C^	1901-12-12	M	141 Cleveland Ave	Atlanta	GA	30317	2010-09-30 10:07:33.378013-05
-24	313922369	Matt^Kelsey^	1940-01-01	M	385 Cleveland Ave	Atlanta	GA	30317	2010-09-30 10:26:00.373045-05
-25	900340334	Matt^Kelsey^	1940-01-01	M	549 Jefferson Ave	Atlanta	GA	30317	2010-09-30 10:34:03.427265-05
-26	169998861	Matt^Kelsey^	1940-01-01	M	594 Jefferson Ave	Atlanta	GA	30319	2010-09-30 10:34:49.668529-05
-27	319384274	Matt^Kelsey^	1940-01-01	M	518 Washington Ave	Atlanta	GA	30319	2010-09-30 10:37:04.933475-05
-28	941543187	m^m^	0202-12-31	F	741 Main St	Atlanta	GA	30317	2010-09-30 10:46:31.938738-05
-29	154451252	Moore^D^	1902-12-12	M	828 Cleveland Ave	Atlanta	GA	30317	2010-10-01 15:11:50.8262-05
-30	196921969	K^M^	0101-12-31	M	703 Central Ave	Atlanta	GA	30317	2010-10-01 16:00:48.07983-05
-31	188602961	Martin^Dean^	1914-01-01	M	626 Birch Ave	Atlanta	GA	30317	2010-10-01 16:04:59.051595-05
-32	650856216	Simon^Simple^	1901-01-01	M	897 Jefferson Ave	Atlanta	GA	30319	2010-10-01 16:09:04.639672-05
-33	603406323	Rather^Dan^	1941-01-01	M	54 Adams Lane	Atlanta	GA	30319	2010-10-01 16:10:45.809768-05
-34	613859951	Dean^Jimmy^	1900-01-01	M	993 Madison Ave	Atlanta	GA	30319	2010-10-01 16:27:57.159799-05
-35	393594062	Shagnasty^Boliver^	0101-12-31	M	519 Oak St	Atlanta	GA	30322	2010-10-01 16:47:31.141125-05
-36	288128487	TEST^^	1980-12-25	F	349 Elm St	Atlanta	GA	30317	2010-10-11 13:19:16.135587-05
-37	123998648	TEST^ELEVEN^	1942-12-01	M	118 Washington Ave	Atlanta	GA	30317	2010-10-11 13:20:40.940425-05
-38	939894620	TEST^TWELVE^	1972-08-22	M	818 Washington Ave	Atlanta	GA	30319	2010-10-11 13:28:26.420589-05
-39	147563401	Matt^Kelsey^	1911-01-01	M	867 Adams Lane	Atlanta	GA	30317	2010-10-11 14:52:30.579113-05
-40	903496451	Moore^C^	1900-12-12	M	625 Rooselvelt Ave	Atlanta	GA	30319	2010-10-12 21:32:04.026557-05
-41	251566329	Moore^CFiftyA^	1950-12-12	M	16 Hill St	Atlanta	GA	30319	2010-10-12 21:51:13.638931-05
-42	283348176	Wed^Ctwentyaa^	1920-12-12	M	170 Main St	Atlanta	GA	30322	2010-10-13 09:34:40.386705-05
-67	448520587	Wed^Coneae^	1905-12-01	M	767 Adams Lane	Atlanta	GA	30319	2010-10-20 22:12:11.646229-05
-51	357656050	TEST^FIFTY^	1930-01-01	M	825 Washington Ave	Atlanta	GA	30333	2010-10-13 18:57:58.948805-05
-48	317082933	Wed^Caa^	1970-12-12	M	780 Jefferson Ave	Atlanta	GA	30329	2010-10-13 14:03:11.108451-05
-52	430754812	DAY^TWO^	1940-01-01	M	224 Rooselvelt Ave	Atlanta	GA	30333	2010-10-14 10:45:56.22533-05
-53	619438774	DAY^THREE^	1950-01-01	M	118 Adams Lane	Atlanta	GA	30333	2010-10-14 13:10:12.0684-05
-54	709222489	FOUR^THREE^	1960-01-01	M	619 Main St	Atlanta	GA	30338	2010-10-14 13:21:05.034317-05
-55	842999018	TEST^SIXTY^	1960-01-01	M	68 Jefferson Ave	Atlanta	GA	30338	2010-10-14 14:53:25.048286-05
-56	717091616	Doe^Jone^	1998-09-10	M	587 Madison Ave	Atlanta	GA	30338	2010-10-14 15:35:09.090517-05
-57	198210769	Wed^Cfiveaa^	1905-12-12	M	855 Elm St	Atlanta	GA	30338	2010-10-14 16:56:34.73007-05
-58	222421165	Thu^Cfiftyba^	1946-02-01	M	474 Chestnut St	Atlanta	GA	30340	2010-10-14 17:04:05.402721-05
-59	532194382	Thu^Chundreda^	2000-12-12	M	269 Oak St	Atlanta	GA	30340	2010-10-14 17:22:33.09905-05
-60	249629085	TEST^SIXTY^	1942-12-01	M	271 Oak St	Atlanta	GA	30340	2010-10-15 16:33:26.126818-05
-61	411146676	TEST^SEVENTY^	1976-11-01	F	669 Cleveland Ave	Atlanta	GA	30317	2010-10-15 16:35:06.64385-05
-62	172615160	Tue^Ctwoaa^	1910-12-12	M	20 Maple Ave	Atlanta	GA	30317	2010-10-19 13:37:02.618494-05
-63	100621249	Tue^Coneaa^	1901-12-12	M	553 Maple Ave	Atlanta	GA	30317	2010-10-20 08:59:46.913925-05
-64	878012805	Tue^Coneab^	1901-12-01	M	430 Adams Lane	Atlanta	GA	30317	2010-10-20 09:13:17.915816-05
-68	194783596	Wed^Coneaf^	1905-12-01	M	165 Madison Ave	Atlanta	GA	30322	2010-10-20 22:26:47.288353-05
-69	277621360	Wed^Coneag^	1906-12-01	M	296 Jefferson Ave	Atlanta	GA	30322	2010-10-20 23:04:57.316832-05
-70	110069930	Wed^Coneah^	1908-12-01	M	31 Rooselvelt Ave	Atlanta	GA	30322	2010-10-20 23:12:51.98814-05
-71	291816949	Wed^Coneai^	1909-12-01	M	869 Birch Ave	Atlanta	GA	30329	2010-10-20 23:32:21.865094-05
-72	915914130	Wed^Conej^	1910-12-01	M	704 Main St	Atlanta	GA	30329	2010-10-20 23:48:19.51666-05
-73	138546187	Thu^Coneb^	1911-12-01	M	262 Main St	Atlanta	GA	30329	2010-10-21 16:41:13.040031-05
-74	700193747	Thu^Conebb^	1912-12-01	M	983 Adams Lane	Atlanta	GA	30333	2010-10-21 16:52:59.647264-05
-75	426729010	Thu^Conebc^	1913-12-01	M	160 Madison Ave	Atlanta	GA	30333	2010-10-21 21:08:18.962563-05
-76	554468902	Thu^Conebd^	1914-12-01	M	436 Adams Lane	Atlanta	GA	30333	2010-10-21 21:54:52.153677-05
-77	764181133	Thu^Conebe^	1915-12-01	M	720 Woodland Ave	Atlanta	GA	30338	2010-10-21 22:15:47.018459-05
-78	276730794	Thu^Conebf^	1916-12-01	M	858 Elm St	Atlanta	GA	30338	2010-10-21 23:02:16.338895-05
+COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date, consent_timestamp) FROM stdin;
+82	618203196	LARGE^STUDYONE^	1910-08-09	M	459 Jefferson Ave	Atlanta	GA	30322	2011-02-14 23:55:41.615598-06	2011-02-14 23:55:41.601-06
+83	105283367	LARGE^STUDYTWO^	1972-08-22	F	901 Birch Ave	Atlanta	GA	30317	2011-02-15 08:23:20.954263-06	2011-02-15 08:23:20.948-06
+84	231444323	LARGE^STUDYTHREE^	1960-10-22	M	213 Jefferson Ave	Atlanta	GA	30322	2011-02-15 08:24:30.651405-06	2011-02-15 08:24:30.639-06
+81	212763672	TWO^ONE^	1977-02-08	F	2 Oak St	Atlanta	GA	30317	2011-01-27 22:58:59.331036-06	\N
+85	101898188	Moorex^S^	1946-02-01	M	321 Oak St	Atlanta	GA	30317	2011-01-27 22:58:59.331036-06	\N
+80	128235611	TEST^ONE^	1942-12-01	M	734 Chestnut St	Atlanta	GA	30317	2011-02-08 13:27:59.276179-06	\N
+87	380428614	MRI^TESTTWO^	1910-08-09	F	535 Madison Ave	Atlanta	GA	30317	2011-02-08 13:28:03.699923-06	\N
+86	399608982	MRI^TESTONE^	1976-11-01	M	477 Rooselvelt Ave	Atlanta	GA	30317	2011-02-08 14:02:09.634235-06	2011-02-08 14:02:09.622-06
 \.
 
 
@@ -4168,136 +2285,22 @@ COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip
 --
 
 COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_text, signer, dictator, transcriber, modified_date) FROM stdin;
-4	7	\N	FINALIZED	2010-06-02 10:56:00-05	1) Create report in Radhwere.\r\n2) Sign/Finalize report in Radwhere\r\n\r\n	PA0001^Avrin^David^^^			2010-09-16 14:13:55.667721-05
-15	16	\N	FINALIZED	2010-09-21 17:03:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-21 17:03:45.35519-05
-84	50	\N	FINALIZED	2010-10-14 01:14:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 15:17:41.659075-05
-21	19	\N	ORDERED	2010-09-24 12:38:00-05					2010-09-24 12:38:14.766935-05
-22	19	\N	FINALIZED	2010-09-24 22:38:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-24 12:38:17.997799-05
-23	20	\N	ORDERED	2010-09-24 12:54:00-05					2010-09-24 12:53:44.02802-05
-24	20	\N	FINALIZED	2010-09-24 22:54:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-24 12:53:47.353021-05
-25	21	\N	ORDERED	2010-09-24 15:04:00-05					2010-09-24 15:03:31.085127-05
-26	21	\N	FINALIZED	2010-09-25 01:04:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-24 15:03:34.375295-05
-27	22	\N	ORDERED	2010-09-28 13:29:00-05					2010-09-28 13:28:25.959154-05
-28	22	\N	FINALIZED	2010-09-28 23:29:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-28 13:28:29.500032-05
-29	23	\N	ORDERED	2010-09-30 10:08:00-05					2010-09-30 10:07:30.282475-05
-30	23	\N	FINALIZED	2010-09-30 20:09:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-30 10:07:33.730646-05
-31	24	\N	ORDERED	2010-09-30 10:27:00-05					2010-09-30 10:25:57.248087-05
-32	24	\N	FINALIZED	2010-09-30 20:27:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-30 10:26:00.674051-05
-33	25	\N	ORDERED	2010-09-30 10:35:00-05					2010-09-30 10:34:00.313237-05
-34	25	\N	FINALIZED	2010-09-30 20:35:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-30 10:34:03.702226-05
-35	26	\N	ORDERED	2010-09-30 10:36:00-05					2010-09-30 10:34:46.520928-05
-36	26	\N	FINALIZED	2010-09-30 20:36:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-30 10:34:49.963304-05
-37	27	\N	ORDERED	2010-09-30 10:38:00-05					2010-09-30 10:37:01.832961-05
-38	27	\N	FINALIZED	2010-09-30 20:38:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-30 10:37:05.290494-05
-39	28	\N	ORDERED	2010-09-30 10:47:00-05					2010-09-30 10:46:28.724042-05
-40	28	\N	FINALIZED	2010-09-30 20:48:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-09-30 10:46:32.289642-05
-41	29	\N	ORDERED	2010-10-01 15:13:00-05					2010-10-01 15:11:47.733983-05
-42	29	\N	FINALIZED	2010-10-02 01:13:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 15:11:50.952769-05
-43	30	\N	ORDERED	2010-10-01 16:02:00-05					2010-10-01 16:00:44.994986-05
-44	30	\N	FINALIZED	2010-10-02 02:02:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 16:00:48.212182-05
-45	31	\N	ORDERED	2010-10-01 16:06:00-05					2010-10-01 16:04:55.944517-05
-46	31	\N	FINALIZED	2010-10-02 02:06:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 16:04:59.209375-05
-47	32	\N	ORDERED	2010-10-01 16:10:00-05					2010-10-01 16:09:01.4735-05
-48	32	\N	FINALIZED	2010-10-02 02:10:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 16:09:04.781957-05
-49	33	\N	ORDERED	2010-10-01 16:12:00-05					2010-10-01 16:10:42.72045-05
-50	33	\N	FINALIZED	2010-10-02 02:12:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 16:10:45.975904-05
-51	34	\N	ORDERED	2010-10-01 16:29:00-05					2010-10-01 16:27:54.08272-05
-52	34	\N	FINALIZED	2010-10-02 02:29:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 16:27:57.296217-05
-53	35	\N	ORDERED	2010-10-01 16:49:00-05					2010-10-01 16:47:28.073337-05
-54	35	\N	FINALIZED	2010-10-02 02:49:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-01 16:47:31.263582-05
-55	36	\N	ORDERED	2010-10-11 13:15:00-05					2010-10-11 13:19:12.90432-05
-56	36	\N	FINALIZED	2010-10-11 23:15:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-11 13:19:16.394744-05
-57	37	\N	ORDERED	2010-10-11 13:17:00-05					2010-10-11 13:20:37.75772-05
-58	37	\N	FINALIZED	2010-10-11 23:17:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-11 13:20:41.367517-05
-59	38	\N	ORDERED	2010-10-11 13:24:00-05					2010-10-11 13:28:23.316437-05
-60	38	\N	FINALIZED	2010-10-11 23:24:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-11 13:28:26.571649-05
-61	39	\N	ORDERED	2010-10-11 14:48:00-05					2010-10-11 14:52:27.473765-05
-62	39	\N	FINALIZED	2010-10-12 00:48:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-11 14:52:30.810583-05
-63	40	\N	ORDERED	2010-10-12 21:28:00-05					2010-10-12 21:32:00.910962-05
-64	40	\N	FINALIZED	2010-10-13 07:28:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-12 21:32:04.294371-05
-65	41	\N	ORDERED	2010-10-12 21:47:00-05					2010-10-12 21:51:10.534733-05
-66	41	\N	FINALIZED	2010-10-13 07:47:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-12 21:51:13.765706-05
-67	42	\N	ORDERED	2010-10-13 09:31:00-05					2010-10-13 09:34:36.98192-05
-68	42	\N	FINALIZED	2010-10-13 19:31:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 09:34:40.506974-05
-69	43	\N	ORDERED	2010-10-13 12:36:00-05					2010-10-13 12:40:07.853564-05
-70	43	\N	FINALIZED	2010-10-13 22:36:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 12:40:11.546105-05
-71	44	\N	ORDERED	2010-10-13 13:08:00-05					2010-10-13 13:11:22.87361-05
-72	44	\N	FINALIZED	2010-10-13 23:08:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 13:11:26.453814-05
-73	45	\N	ORDERED	2010-10-13 13:10:00-05					2010-10-13 13:13:42.708566-05
-74	45	\N	FINALIZED	2010-10-13 23:10:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 13:13:45.926303-05
-75	46	\N	ORDERED	2010-10-13 13:20:00-05					2010-10-13 13:23:26.343173-05
-76	46	\N	FINALIZED	2010-10-13 23:20:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 13:23:30.200803-05
-77	47	\N	ORDERED	2010-10-13 13:37:00-05					2010-10-13 13:40:54.176834-05
-78	47	\N	FINALIZED	2010-10-13 23:37:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 13:40:57.643522-05
-79	48	\N	ORDERED	2010-10-13 13:59:00-05					2010-10-13 14:03:02.927658-05
-80	48	\N	FINALIZED	2010-10-13 23:59:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 14:03:06.073167-05
-81	49	\N	ORDERED	2010-10-13 13:59:00-05					2010-10-13 14:03:08.012129-05
-82	49	\N	FINALIZED	2010-10-13 23:59:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 14:03:11.222374-05
-83	50	\N	ORDERED	2010-10-13 15:14:00-05					2010-10-13 15:17:38.357826-05
-85	51	\N	ORDERED	2010-10-13 15:14:00-05					2010-10-13 15:17:44.036378-05
-86	51	\N	FINALIZED	2010-10-14 01:14:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 15:17:47.19073-05
-87	52	\N	ORDERED	2010-10-13 18:44:00-05					2010-10-13 18:47:45.956288-05
-88	52	\N	FINALIZED	2010-10-14 04:44:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 18:47:50.899816-05
-89	53	\N	ORDERED	2010-10-13 18:44:00-05					2010-10-13 18:47:53.067348-05
-90	53	\N	FINALIZED	2010-10-14 04:44:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 18:47:56.358851-05
-91	54	\N	ORDERED	2010-10-13 18:54:00-05					2010-10-13 18:57:50.549068-05
-92	54	\N	FINALIZED	2010-10-14 04:54:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 18:57:53.752635-05
-93	55	\N	ORDERED	2010-10-13 18:54:00-05					2010-10-13 18:57:55.846708-05
-94	55	\N	FINALIZED	2010-10-14 04:54:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-13 18:57:59.053237-05
-95	56	\N	ORDERED	2010-10-14 10:42:00-05					2010-10-14 10:45:53.141095-05
-96	56	\N	FINALIZED	2010-10-14 20:42:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 10:45:56.35012-05
-97	57	\N	ORDERED	2010-10-14 13:06:00-05					2010-10-14 13:10:08.961671-05
-98	57	\N	FINALIZED	2010-10-14 23:06:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 13:10:12.197873-05
-99	58	\N	ORDERED	2010-10-14 13:17:00-05					2010-10-14 13:21:01.971452-05
-100	58	\N	FINALIZED	2010-10-14 23:17:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 13:21:05.225659-05
-101	59	\N	ORDERED	2010-10-14 14:50:00-05					2010-10-14 14:53:21.969922-05
-102	59	\N	FINALIZED	2010-10-15 00:50:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 14:53:25.165023-05
-103	60	\N	ORDERED	2010-10-14 15:31:00-05					2010-10-14 15:35:06.001129-05
-104	60	\N	FINALIZED	2010-10-15 01:31:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 15:35:09.28124-05
-105	61	\N	ORDERED	2010-10-14 16:53:00-05					2010-10-14 16:56:31.664972-05
-106	61	\N	FINALIZED	2010-10-15 02:53:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 16:56:34.815163-05
-107	62	\N	ORDERED	2010-10-14 17:00:00-05					2010-10-14 17:04:02.329714-05
-108	62	\N	FINALIZED	2010-10-15 03:00:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 17:04:05.535753-05
-109	63	\N	ORDERED	2010-10-14 17:19:00-05					2010-10-14 17:22:30.034348-05
-110	63	\N	FINALIZED	2010-10-15 03:19:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-14 17:22:33.214258-05
-111	64	\N	ORDERED	2010-10-15 16:30:00-05					2010-10-15 16:33:23.042985-05
-112	64	\N	FINALIZED	2010-10-16 02:30:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-15 16:33:26.346003-05
-113	65	\N	ORDERED	2010-10-15 16:31:00-05					2010-10-15 16:35:03.466623-05
-114	65	\N	FINALIZED	2010-10-16 02:32:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-15 16:35:07.070923-05
-115	66	\N	ORDERED	2010-10-19 13:34:00-05					2010-10-19 13:36:58.61666-05
-116	66	\N	FINALIZED	2010-10-19 23:34:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-19 13:37:03.221584-05
-117	67	\N	ORDERED	2010-10-20 08:57:00-05					2010-10-20 08:59:43.843911-05
-118	67	\N	FINALIZED	2010-10-20 18:57:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 08:59:47.147352-05
-119	68	\N	ORDERED	2010-10-20 09:10:00-05					2010-10-20 09:13:14.616174-05
-120	68	\N	FINALIZED	2010-10-20 19:10:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 09:13:18.08472-05
-121	69	\N	ORDERED	2010-10-20 09:29:00-05					2010-10-20 09:31:30.850888-05
-122	69	\N	FINALIZED	2010-10-20 19:29:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 09:31:34.102163-05
-123	70	\N	ORDERED	2010-10-20 10:05:00-05					2010-10-20 10:08:08.314086-05
-124	70	\N	FINALIZED	2010-10-20 20:05:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 10:08:11.509368-05
-125	71	\N	ORDERED	2010-10-20 22:09:00-05					2010-10-20 22:12:08.585295-05
-126	71	\N	FINALIZED	2010-10-21 08:09:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 22:12:11.763503-05
-127	72	\N	ORDERED	2010-10-20 22:24:00-05					2010-10-20 22:26:44.226922-05
-128	72	\N	FINALIZED	2010-10-21 08:24:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 22:26:47.409519-05
-129	73	\N	ORDERED	2010-10-20 23:02:00-05					2010-10-20 23:04:54.240195-05
-130	73	\N	FINALIZED	2010-10-21 09:02:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 23:04:57.422145-05
-131	74	\N	ORDERED	2010-10-20 23:10:00-05					2010-10-20 23:12:48.922832-05
-132	74	\N	FINALIZED	2010-10-21 09:10:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 23:12:52.148122-05
-133	75	\N	ORDERED	2010-10-20 23:29:00-05					2010-10-20 23:32:18.80737-05
-134	75	\N	FINALIZED	2010-10-21 09:29:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 23:32:21.990981-05
-135	76	\N	ORDERED	2010-10-20 23:45:00-05					2010-10-20 23:48:16.438391-05
-136	76	\N	FINALIZED	2010-10-21 09:45:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-20 23:48:19.633153-05
-137	77	\N	ORDERED	2010-10-21 16:38:00-05					2010-10-21 16:41:09.970245-05
-138	77	\N	FINALIZED	2010-10-22 02:38:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 16:41:13.573449-05
-139	78	\N	ORDERED	2010-10-21 16:50:00-05					2010-10-21 16:52:56.586375-05
-140	78	\N	FINALIZED	2010-10-22 02:50:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 16:52:59.764087-05
-141	79	\N	ORDERED	2010-10-21 21:05:00-05					2010-10-21 21:08:15.888204-05
-142	79	\N	FINALIZED	2010-10-22 07:06:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 21:08:19.097024-05
-143	80	\N	ORDERED	2010-10-21 21:52:00-05					2010-10-21 21:54:49.092017-05
-144	80	\N	FINALIZED	2010-10-22 07:52:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 21:54:52.267397-05
-145	81	\N	ORDERED	2010-10-21 22:13:00-05					2010-10-21 22:15:43.962022-05
-146	81	\N	FINALIZED	2010-10-22 08:13:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 22:15:47.139135-05
-147	82	\N	ORDERED	2010-10-21 22:59:00-05					2010-10-21 23:02:13.258522-05
-148	82	\N	FINALIZED	2010-10-22 08:59:00-05	Report Text\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-10-21 23:02:16.455285-05
+151	84	\N	ORDERED	2010-12-20 13:22:00-06					2010-12-20 13:22:30.946856-06
+152	84	\N	FINALIZED	2010-12-20 23:23:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-12-20 13:22:34.075268-06
+153	85	\N	ORDERED	2010-12-20 13:23:00-06					2010-12-20 13:23:13.889372-06
+154	85	\N	FINALIZED	2010-12-20 23:23:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2010-12-20 13:23:17.036358-06
+155	86	\N	ORDERED	2011-01-10 18:45:00-06					2011-01-10 18:46:51.961269-06
+156	86	\N	FINALIZED	2011-01-11 04:45:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2011-01-10 18:46:55.101761-06
+157	87	\N	ORDERED	2011-01-10 19:02:00-06					2011-01-10 19:04:09.552187-06
+158	87	\N	FINALIZED	2011-01-11 05:02:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2011-01-10 19:04:12.658427-06
+159	88	\N	ORDERED	2011-01-11 15:59:00-06					2011-01-11 16:01:40.913252-06
+160	88	\N	FINALIZED	2011-01-12 01:59:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2011-01-11 16:01:44.039016-06
+161	89	\N	ORDERED	2011-01-27 09:03:00-06					2011-01-27 09:07:03.965455-06
+162	89	\N	FINALIZED	2011-01-27 19:03:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2011-01-27 09:07:07.071101-06
+163	90	\N	ORDERED	2011-01-27 09:32:00-06					2011-01-27 09:35:39.161978-06
+164	90	\N	FINALIZED	2011-01-27 19:32:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2011-01-27 09:35:42.296624-06
+165	91	\N	ORDERED	2011-01-27 09:37:00-06					2011-01-27 09:40:58.221306-06
+166	91	\N	FINALIZED	2011-01-27 19:37:00-06	MR RIGHT KNEE:  \\.br\\.brCLINICAL INDICATION:  Tear of medial meniscus.\\.br\\.brTECHNIQUE:  Axial, sagittal and coronal sequences were performed.\\.br\\.brOBSERVATIONS:  The lateral meniscus is unremarkable.  Medial meniscus\\.brdemonstrates some degenerative signals which do not touch the inferior\\.brarticular surface of knee joint, for example series 4, images 5-6.  However, on\\.brimage 7, a small, globular focus abuts the inferior articular surface\\.brnear the free edge; this is compatible with a tear.\\.br\\.brQuadriceps tendon and patellar tendon are intact.  Anterior cruciate ligament and posterior cruciate ligament are intact.  Medial collateral ligament and fibular collateral ligaments are intact.\\.br\\.brAs far as can be seen, the articular cartilage is unremarkable.\\.br\\.brModerate amount of suprapatellar fluid is identified.\\.br\\.brIMPRESSION:\\.br\\.br DEGENERATIVE CHANGES AND TEAR, POSTERIOR HORN OF MEDIAL MENISCUS;\\.br\\.br MODERATE AMOUNT OF SUPRAPATELLAR FLUID\\.br\\.br COMMENT:  THERE IS SUGGESTION OF A MEDIAL PATELLAR PLICA\r\n	^SIGNER^K^^^		^TRANSCRIBER^L^^^	2011-01-27 09:41:01.329823-06
 \.
 
 
@@ -4310,213 +2313,35 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 
 
 --
+-- Data for Name: status_codes; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY status_codes (status_code, description, modified_date) FROM stdin;
+31	Started processing input data	2010-10-22 09:58:07.496506-05
+21	Waiting for report finalization	2010-10-22 11:59:15.243445-05
+23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05
+30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05
+22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
+32	Started KOS generation	2010-10-22 09:58:07.496506-05
+33	Stared patient registration	2010-10-22 09:58:07.496506-05
+34	Started document submission	2010-10-22 09:58:07.496506-05
+40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05
+1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05
+-23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05
+-21	Unable to find images	2010-10-22 11:59:15.243445-05
+-32	Failed to generate KOS	2010-11-02 09:39:45.53873-05
+-30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05
+-20	Failed to prepare content	2010-10-22 09:58:07.496506-05
+-33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05
+-34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05
+\.
+
+
+--
 -- Data for Name: studies; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY studies (study_id, study_uid, exam_id, study_description, study_date, modified_date) FROM stdin;
-34	1.2.3.4.5.6.7.383143.39	7	Description	2010-09-13 14:38:45	2010-09-27 17:01:06.43-05
-35	1.2.3.4.5.6.7.383143.39	7	Description	2010-09-13 14:38:45	2010-09-27 17:22:39.57-05
-36	1.2.3.4.5.6.7.824357.1	19	Description	2010-09-24 12:38:55	2010-09-27 17:25:19.484-05
-37	1.2.3.4.5.6.7.824357.27	20	Description	2010-09-24 12:54:24	2010-09-27 17:26:19.488-05
-38	1.2.3.4.5.6.7.383143.39	7	Description	2010-09-13 14:38:45	2010-09-28 12:54:35.346-05
-39	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-09-28 13:54:00.85-05
-40	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-09-28 13:56:49.821-05
-41	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-09-28 14:06:00.414-05
-42	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-09-28 14:09:55.619-05
-43	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-09-28 15:00:48.779-05
-44	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-09-29 10:00:35.376-05
-45	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 14:13:28.385-05
-46	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 14:20:08.909-05
-47	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 14:23:54.057-05
-48	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 14:35:42.934-05
-49	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 15:22:24.299-05
-50	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 16:12:47.889-05
-51	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 16:34:10.841-05
-52	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 16:45:26.93-05
-53	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-04 16:48:13.466-05
-54	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 14:38:16.892-05
-55	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 15:13:26.253-05
-56	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 15:14:56.729-05
-57	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 18:22:45.333-05
-58	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 18:31:06.881-05
-59	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 18:38:13.277-05
-60	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 18:53:20.21-05
-61	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-05 19:05:41.312-05
-62	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-06 09:31:09.989-05
-63	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 13:38:52.104-05
-64	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 17:37:09.872-05
-65	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 17:43:33.997-05
-66	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 17:46:45.272-05
-67	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 17:53:22.278-05
-68	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 18:06:12.512-05
-69	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 18:18:24.243-05
-70	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 18:28:18.514-05
-71	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 18:32:04.784-05
-72	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 18:36:47.516-05
-73	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-06 18:42:56.325-05
-74	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 10:01:59.746-05
-75	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 13:25:22.743-05
-76	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 13:43:40.185-05
-77	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 13:59:08.41-05
-78	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 16:47:45.654-05
-79	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 16:58:00.564-05
-80	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 17:41:31.999-05
-81	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 18:09:56.265-05
-82	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 18:15:04.639-05
-83	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 18:19:04.754-05
-84	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 18:37:53.506-05
-85	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 18:39:15.567-05
-86	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 18:45:24.578-05
-87	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 19:02:15.662-05
-88	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 19:22:18.327-05
-89	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 19:28:20.941-05
-90	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 19:39:50.914-05
-91	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 19:42:13.664-05
-92	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 19:54:18.749-05
-93	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-07 20:03:31.788-05
-94	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 09:00:51.165-05
-95	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 09:32:52.845-05
-96	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 09:47:58.088-05
-97	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 09:57:40.727-05
-98	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 10:04:52.752-05
-99	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 10:13:18.796-05
-100	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 10:21:40.54-05
-101	1.2.3.4.5.6.7.484882.0	22	Description	2010-09-28 13:29:42	2010-10-08 10:29:51.556-05
-102	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-08 10:41:06.805-05
-103	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-08 11:05:40.354-05
-104	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-08 11:19:27.629-05
-105	1.2.3.4.5.6.7.862899.30	31	Description	2010-10-01 16:06:39	2010-10-08 11:52:38.618-05
-106	1.2.3.4.5.6.7.824357.1	19	Description	2010-09-24 12:38:55	2010-10-08 18:45:01.094-05
-107	1.2.3.4.5.6.7.824357.1	19	Description	2010-09-24 12:38:55	2010-10-08 19:11:05.431-05
-108	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 20:17:04.709-05
-109	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 20:24:11.475-05
-110	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 21:25:44.171-05
-111	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:25:31.296-05
-112	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:27:31.105-05
-113	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:29:30.838-05
-114	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:33:30.952-05
-115	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:37:42.91-05
-116	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:42:30.987-05
-117	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:45:18.667-05
-118	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:45:30.872-05
-119	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:49:30.898-05
-120	2.16.840.1.114151.4.231.40336.4545.5232641	19	XR HIP 2 VIEW, RT	2010-06-09 10:56:06	2010-10-08 23:51:17.786-05
-121	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-10 20:47:57.152-05
-122	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 11:10:31.419-05
-123	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 11:12:46.877-05
-124	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 11:14:03.94-05
-125	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 11:17:43.634-05
-126	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 11:21:18.658-05
-127	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 11:29:39.114-05
-128	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 12:11:01.717-05
-129	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 13:11:18.614-05
-130	2.16.840.1.114151.4.231.39225.4060.3055543	19	R GMI HAND 3 V MIN	2007-05-25 09:50:14	2010-10-11 17:18:31.918-05
-131	1.2.3.4.5.6.7.9357.182	42	Abdomen-20	2010-10-13 09:31:19	2010-10-13 10:20:21.927-05
-132	1.2.3.4.5.6.7.9357.206	43	Abdomen-20	2010-10-13 12:36:51	2010-10-13 13:21:37.894-05
-133	1.2.3.4.5.6.7.9357.206	43	Abdomen-20	2010-10-13 12:36:51	2010-10-13 13:30:20.485-05
-134	1.2.3.4.5.6.7.9357.206	43	Abdomen-20	2010-10-13 12:36:51	2010-10-13 13:36:46.353-05
-135	1.2.3.4.5.6.7.9357.206	43	Abdomen-20	2010-10-13 12:36:51	2010-10-13 14:05:40.519-05
-136	1.2.3.4.5.6.7.9357.278	49	Abdomen-50	2010-10-13 13:59:51	2010-10-13 14:22:16.836-05
-137	1.2.3.4.5.6.7.9357.230	47	Abdomen-20	2010-10-13 13:37:38	2010-10-13 14:50:52.33-05
-138	1.2.3.4.5.6.7.9357.206	43	Abdomen-20	2010-10-13 12:36:51	2010-10-13 15:11:12.169-05
-139	1.2.3.4.5.6.7.9357.332	50	Abdomen-20	2010-10-13 15:14:22	2010-10-13 15:21:06.93-05
-140	1.2.3.4.5.6.7.9357.356	51	Abdomen-50	2010-10-13 15:14:28	2010-10-13 15:21:29.715-05
-141	1.2.3.4.5.6.7.9357.434	53	Abdomen-50	2010-10-13 18:44:38	2010-10-13 19:02:42.745-05
-142	1.2.3.4.5.6.7.9357.488	54	Abdomen-20	2010-10-13 18:54:35	2010-10-13 19:20:55.152-05
-143	1.2.3.4.5.6.7.9357.512	55	Abdomen-50	2010-10-13 18:54:41	2010-10-13 19:33:03.877-05
-144	1.2.3.4.5.6.7.9357.488	54	Abdomen-20	2010-10-13 18:54:35	2010-10-13 20:02:35.433-05
-145	1.2.3.4.5.6.7.9357.512	55	Abdomen-50	2010-10-13 18:54:41	2010-10-13 20:05:58.21-05
-146	1.2.3.4.5.6.7.9357.434	53	Abdomen-50	2010-10-13 18:44:38	2010-10-13 20:13:40.761-05
-147	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 11:46:15.175-05
-148	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 11:48:15.891-05
-149	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 11:54:55.892-05
-150	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 12:00:57.214-05
-151	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 12:46:58.04-05
-152	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 12:52:51.804-05
-153	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 12:59:26.461-05
-154	1.2.3.4.5.6.7.2541.566	56	Abdomen-05	2010-10-14 10:42:43	2010-10-14 13:05:03.882-05
-155	1.2.3.4.5.6.7.2541.575	57	Abdomen-05	2010-10-14 13:07:00	2010-10-14 13:12:08.874-05
-156	1.2.3.4.5.6.7.2541.584	58	Abdomen-05	2010-10-14 13:17:53	2010-10-14 13:25:19.563-05
-157	1.2.3.4.5.6.7.2541.584	58	Abdomen-05	2010-10-14 13:17:53	2010-10-14 13:41:25.218-05
-158	1.2.3.4.5.6.7.2541.584	58	Abdomen-05	2010-10-14 13:17:53	2010-10-14 14:26:26.756-05
-159	1.2.3.4.5.6.7.2541.584	58	Abdomen-05	2010-10-14 13:17:53	2010-10-14 14:50:38.416-05
-160	1.2.3.4.5.6.7.2541.593	59	Abdomen-05	2010-10-14 14:50:13	2010-10-14 14:55:07.348-05
-161	1.2.3.4.5.6.7.2541.593	59	Abdomen-05	2010-10-14 14:50:13	2010-10-14 15:04:02.591-05
-162	1.2.3.4.5.6.7.2541.593	59	Abdomen-05	2010-10-14 14:50:13	2010-10-14 15:16:23.986-05
-163	1.2.3.4.5.6.7.2541.593	59	Abdomen-05	2010-10-14 14:50:13	2010-10-14 15:18:47.538-05
-164	1.2.3.4.5.6.7.2541.593	59	Abdomen-05	2010-10-14 14:50:13	2010-10-14 15:22:58.102-05
-165	1.2.3.4.5.6.7.2541.593	59	Abdomen-05	2010-10-14 14:50:13	2010-10-14 15:26:34.374-05
-166	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 15:56:15.433-05
-167	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:05:40.044-05
-168	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:12:22.237-05
-169	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:13:51.346-05
-170	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:16:56.643-05
-171	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:20:31.269-05
-172	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:25:04.166-05
-173	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:28:53.422-05
-174	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:39:52.523-05
-175	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:46:17.613-05
-176	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:47:25.683-05
-177	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:50:27.641-05
-178	1.2.3.4.5.6.7.2541.602	60	Abdomen-05	2010-10-14 15:31:57	2010-10-14 16:51:52.415-05
-179	1.2.3.4.5.6.7.2541.611	61	Abdomen-05	2010-10-14 16:53:23	2010-10-14 17:01:23.457-05
-180	1.2.3.4.5.6.7.2541.620	62	Abdomen-50	2010-10-14 17:00:54	2010-10-14 17:17:07.666-05
-181	1.2.3.4.5.6.7.2541.674	63	Abdomen-100	2010-10-14 17:19:22	2010-10-14 17:40:02.098-05
-182	1.2.3.4.5.6.7.2541.674	63	Abdomen-100	2010-10-14 17:19:22	2010-10-15 11:43:34.022-05
-183	1.2.3.4.5.6.7.2541.674	63	Abdomen-100	2010-10-14 17:19:22	2010-10-15 11:53:03.447-05
-184	1.2.3.4.5.6.7.2541.674	63	Abdomen-100	2010-10-14 17:19:22	2010-10-15 11:56:42.628-05
-185	1.2.3.4.5.6.7.2541.674	63	Abdomen-100	2010-10-14 17:19:22	2010-10-15 12:04:48.682-05
-186	1.2.3.4.5.6.7.2541.674	63	Abdomen-100	2010-10-14 17:19:22	2010-10-15 12:18:04.359-05
-187	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 16:53:30.771-05
-188	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 17:17:21.085-05
-189	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-15 17:17:25.777-05
-190	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-15 17:21:13.948-05
-191	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 17:24:27.303-05
-192	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 18:35:17.407-05
-193	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-15 18:40:04.147-05
-194	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 18:42:59.157-05
-195	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 18:54:00.559-05
-196	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-15 19:47:26.283-05
-197	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 19:51:24.387-05
-198	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 19:54:23.012-05
-199	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-15 19:59:13.963-05
-200	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-15 20:10:53.877-05
-201	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-15 20:13:53.347-05
-202	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-16 22:28:27.907-05
-203	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-17 17:40:47.391-05
-204	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-18 14:36:28.801-05
-205	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-18 14:41:49.701-05
-206	1.2.3.4.5.6.7.288621.0	66	Abdomen-02	2010-10-19 13:34:28	2010-10-19 13:55:30.294-05
-207	1.2.3.4.5.6.7.288621.0	66	Abdomen-02	2010-10-19 13:34:28	2010-10-19 13:55:30.484-05
-208	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 14:07:51.77-05
-209	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 14:07:51.774-05
-210	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-19 14:11:43.984-05
-211	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 14:14:27.648-05
-212	1.2.3.4.5.6.7.2541.584	58	Abdomen-05	2010-10-14 13:17:53	2010-10-19 17:01:29.178-05
-213	1.2.3.4.5.6.7.2541.584	58	Abdomen-05	2010-10-14 13:17:53	2010-10-19 17:01:29.89-05
-214	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-19 17:25:55.028-05
-215	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 17:26:29.546-05
-216	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 17:43:38.444-05
-217	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-19 17:44:20.894-05
-218	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 19:06:24.029-05
-219	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-19 19:09:22.064-05
-220	1.2.3.4.5.6.7.2541.778	64	Abdomen-100	2010-10-15 16:30:22	2010-10-19 19:23:49.72-05
-221	1.2.3.4.5.6.7.2541.882	65	Abdomen-100	2010-10-15 16:32:04	2010-10-19 19:26:39.623-05
-222	1.2.3.4.5.6.7.64729.5	68	Abdomen-01	2010-10-20 09:10:48	2010-10-20 09:19:36.81-05
-223	1.2.3.4.5.6.7.64729.10	69	Abdomen-01	2010-10-20 09:29:05	2010-10-20 09:35:18.874-05
-224	1.2.3.4.5.6.7.64729.15	70	Abdomen-01	2010-10-20 10:05:42	2010-10-20 10:11:35.077-05
-225	1.2.3.4.5.6.7.64729.20	71	Abdomen-01	2010-10-20 22:09:46	2010-10-20 22:17:32.778-05
-226	1.2.3.4.5.6.7.64729.25	72	Abdomen-01	2010-10-20 22:24:22	2010-10-20 22:45:44.856-05
-227	1.2.3.4.5.6.7.64729.20	71	Abdomen-01	2010-10-20 22:09:46	2010-10-20 22:46:39.62-05
-228	1.2.3.4.5.6.7.64729.30	73	Abdomen-01	2010-10-20 23:02:32	2010-10-20 23:07:05.397-05
-229	1.2.3.4.5.6.7.64729.35	74	Abdomen-01	2010-10-20 23:10:27	2010-10-20 23:15:07.402-05
-230	1.2.3.4.5.6.7.64729.40	75	Abdomen-01	2010-10-20 23:29:57	2010-10-20 23:35:13.32-05
-231	1.2.3.4.5.6.7.64729.45	76	Abdomen-01	2010-10-20 23:45:55	2010-10-20 23:51:28.931-05
-232	1.2.3.4.5.6.7.64729.55	78	Abdomen-01	2010-10-21 16:50:40	2010-10-21 16:54:45.119-05
-233	1.2.3.4.5.6.7.64729.60	79	Abdomen-01	2010-10-21 21:06:01	2010-10-21 21:44:07.259-05
-234	1.2.3.4.5.6.7.64729.65	80	Abdomen-01	2010-10-21 21:52:34	2010-10-21 21:57:24.678-05
-235	1.2.3.4.5.6.7.64729.70	81	Abdomen-01	2010-10-21 22:13:29	2010-10-21 22:19:07.112-05
-236	1.2.3.4.5.6.7.64729.75	82	Abdomen-01	2010-10-21 22:59:59	2010-10-21 23:06:04.794-05
 \.
 
 
@@ -4524,343 +2349,41 @@ COPY studies (study_id, study_uid, exam_id, study_description, study_date, modif
 -- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY transactions (transaction_id, job_id, status, status_message, modified_date) FROM stdin;
-14419	16	1	Queued	2010-09-28 13:33:18.555-05
-14420	16	2000	Started prepare content	2010-09-28 13:33:19.284616-05
-14421	16	2	Ready to transfer to clearinghouse.	2010-09-28 13:33:36.380203-05
-14509	20	1	Queued	2010-10-13 10:14:51.1-05
-14510	20	2000	Started prepare content	2010-10-13 10:14:52.014031-05
-14470	19	2	Ready to transfer to clearinghouse	2010-10-08 19:26:25.742284-05
-14424	16	2	Ready to transfer to Clearinghouse	2010-09-29 09:59:55.393819-05
-14425	16	2	Ready to transfer to clearinghouse	2010-10-04 14:11:04.219847-05
-14426	16	2	Ready to transfer to clearinghouse	2010-10-04 14:19:49.489162-05
-14427	16	2	Ready to transfer to clearinghouse	2010-10-04 14:34:06.300528-05
-14428	16	2	Ready to transfer to clearinghouse	2010-10-04 15:07:29.74469-05
-14429	16	2	Ready to transfer to clearinghouse	2010-10-04 16:11:47.949786-05
-14430	17	1	Queued	2010-10-04 17:16:52.517-05
-14431	17	2000	Started prepare content	2010-10-04 17:16:53.016984-05
-14432	17	2	Ready to transfer to clearinghouse.	2010-10-04 17:17:03.944639-05
-14433	18	1	Queued	2010-10-04 17:17:52.262-05
-14434	18	2000	Started prepare content	2010-10-04 17:17:52.79899-05
-14435	18	2	Ready to transfer to clearinghouse.	2010-10-04 17:18:00.044471-05
-14436	18	2	Ready to transfer to clearinghouse	2010-10-05 18:37:34.230776-05
-14437	18	2	Ready to transfer to clearinghouse	2010-10-06 09:29:45.059336-05
-14440	16	2	Ready to transfer to clearinghouse	2010-10-06 17:34:57.196082-05
-14441	16	2	Ready to transfer to clearinghouse	2010-10-06 18:31:23.244645-05
-14442	16	2	Ready to transfer to clearinghouse	2010-10-06 18:35:17.072333-05
-14443	16	2	Ready to transfer to clearinghouse	2010-10-06 18:41:35.704041-05
-14444	16	2	Ready to transfer to clearinghouse	2010-10-07 10:01:19.824638-05
-14445	16	2	Ready to transfer to clearinghouse	2010-10-07 13:25:04.322051-05
-14446	16	2	Ready to transfer to clearinghouse	2010-10-07 13:42:32.467116-05
-14447	16	2	Ready to transfer to clearinghouse	2010-10-07 13:58:27.777353-05
-14448	16	2	Ready to transfer to clearinghouse	2010-10-07 16:47:28.475443-05
-14449	16	2	Ready to transfer to clearinghouse	2010-10-07 18:14:49.715313-05
-14450	16	2	Ready to transfer to clearinghouse	2010-10-07 18:17:13.259983-05
-14451	16	2	Ready to transfer to clearinghous	2010-10-07 18:32:55.286336-05
-14452	16	2	Ready to transfer to clearinghouse	2010-10-07 18:42:49.837502-05
-14453	16	2	Ready to transfer to clearinghouse	2010-10-07 19:21:11.68506-05
-14454	16	2	Ready to transfer to clearinghouse	2010-10-07 19:28:01.313531-05
-14455	16	2	Ready to transfer to clearinghouse	2010-10-07 19:41:46.662943-05
-14456	16	2	Ready to transfer to clearinghouse	2010-10-07 19:53:47.36953-05
-14457	16	2	Ready to transfer to clearinghouse	2010-10-07 19:56:19.706731-05
-14458	16	2	Ready to transfer to clearinghouse	2010-10-08 08:59:42.683203-05
-14459	16	2	Ready to transfer to clearinghouse	2010-10-08 09:33:59.848078-05
-14460	16	2	Ready to transfer to clearinghouse	2010-10-08 10:21:19.122797-05
-14438	18	2	Ready to transfer to clearinghouse	2010-10-08 10:38:34.923068-05
-14462	18	2	Ready to transfer to clearinghouse	2010-10-08 11:17:27.345241-05
-14463	18	2	Ready to transfer to clearinghouse	2010-10-08 11:51:26.69518-05
-14464	18	4	Transferred to clearinghouse	2010-10-08 11:56:05.177-05
-14439	17	2	Transferred to clearinghouse	2010-10-08 18:23:52.007476-05
-14461	16	4	Ready to transfer to clearinghouse	2010-10-08 18:24:02.013404-05
-14465	17	2	Ready to transfer to clearinghouse	2010-10-08 18:33:25.54836-05
-14466	17	4	Transferred to clearinghouse	2010-10-08 18:35:55.888-05
-14467	19	2	Ready to transfer to clearinghouse	2010-10-08 18:44:47.708948-05
-14511	20	2	Ready to transfer to clearinghouse.	2010-10-13 10:15:11.259738-05
-14468	19	2	Ready to transfer to clearinghouse	2010-10-08 19:07:48.78743-05
-14469	19	2	Ready to transfer to clearinghouse	2010-10-08 19:22:26.005563-05
-14471	19	2	Ready to tranfer to clearinghouse	2010-10-08 19:28:38.596873-05
-14472	19	2	Ready to transfer to clearinghouse	2010-10-08 19:42:26.059724-05
-14473	19	2	Ready to transfer to clearinghouse	2010-10-08 19:45:01.25487-05
-14474	19	2	Ready to transfer to clearinghouse	2010-10-08 19:58:39.377303-05
-14475	19	2	Ready to transfer to clearinghouse	2010-10-08 21:19:01.600254-05
-14476	19	2	Ready to transfer to clearinghouse	2010-10-08 23:21:16.811201-05
-14477	19	2	Ready to transfer to clearinghouse	2010-10-08 23:24:55.478347-05
-14478	19	2	Ready to transfer to clearinghouse	2010-10-08 23:27:05.545905-05
-14479	19	2	Ready to transfer to clearinghouse	2010-10-08 23:29:03.798432-05
-14480	19	2	Ready to transfer to clearinghouse	2010-10-08 23:30:26.837245-05
-14481	19	2	Ready to transfer to clearinghouse	2010-10-08 23:33:16.10067-05
-14482	19	2	Ready to transfer to clearinghouse	2010-10-08 23:37:32.669851-05
-14483	19	2	Ready to transfer to clearinghouse	2010-10-08 23:41:37.275386-05
-14484	19	2	Ready to transfer to clearinghouse	2010-10-08 23:41:47.143536-05
-14485	19	2	Ready to transfer to clearinghouse	2010-10-08 23:43:56.035645-05
-14486	19	2	Ready to transfer to clearinghouse	2010-10-08 23:44:24.676839-05
-14487	19	2	Ready to transfer to clearinghouse	2010-10-08 23:44:33.99952-05
-14488	19	2	Ready to transfer to clearinghouse	2010-10-08 23:49:09.918876-05
-14499	19	2	Ready to transfer to clearinghouse	2010-10-11 11:12:39.813702-05
-14489	19	2	Ready to transfer to clearinghouse	2010-10-08 23:49:30.203899-05
-14490	19	2	Ready to transfer to clearinghouse	2010-10-08 23:49:43.461199-05
-14491	19	2	Ready to transfer to clearinghouse	2010-10-08 23:50:26.516428-05
-14492	19	2	Ready to transfer to clearinghouse	2010-10-10 20:47:36.833375-05
-14493	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:48:10.095-05
-14494	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:48:36.048-05
-14495	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:48:56.373-05
-14496	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:49:04.523-05
-14497	19	3	Document prepared for transfer to clearinghouse	2010-10-10 20:49:12.992-05
-14498	19	2	Ready to transfer to clearinghouse	2010-10-11 11:09:55.385133-05
-14500	19	2	Ready to transfer to clearninghouse	2010-10-11 11:17:25.468973-05
-14501	19	2	Ready to transfer to clearinghouse	2010-10-11 11:20:33.387952-05
-14502	19	2	Transferred to clearinghouse	2010-10-11 11:25:31.310547-05
-14503	19	2	Ready to transfer to clearinghouse	2010-10-11 11:28:57.604154-05
-14504	19	2	Ready to transfer to clearinghouse	2010-10-11 12:10:11.816904-05
-14505	19	2	Ready to transfer to clearinghouse	2010-10-11 13:08:09.087413-05
-14506	19	2	Ready to transfer to clearinghouse	2010-10-11 13:10:45.201728-05
-14507	19	2	Ready to transfer to clearinghouse	2010-10-11 17:17:53.053261-05
-14508	19	4	Transferred to clearinghouse	2010-10-11 17:20:12.817-05
-14514	21	1	Queued	2010-10-13 12:40:54.676-05
-14513	20	4	Transferred to clearinghouse	2010-10-13 11:37:49.796-05
-14512	20	4	Transferred to clearinghouse	2010-10-13 11:38:33.789349-05
-14515	21	2000	Started prepare content	2010-10-13 12:40:56.266911-05
-14517	22	1	Queued	2010-10-13 13:52:20.467-05
-14516	21	2	Ready to transfer to clearinghouse.	2010-10-13 12:41:37.821396-05
-14518	22	2000	Started prepare content	2010-10-13 13:52:21.489312-05
-14519	22	2	Ready to transfer to clearinghouse.	2010-10-13 13:52:40.713234-05
-14601	35	2	Ready to transfer to clearinghouse	2010-10-14 16:28:37.29218-05
-14603	36	1	Queued	2010-10-14 17:00:16.413-05
-14605	36	2	Ready to transfer to clearinghouse.	2010-10-14 17:00:21.132497-05
-14607	37	1	Queued	2010-10-14 17:06:26.823-05
-14609	37	2	Ready to transfer to clearinghouse.	2010-10-14 17:06:59.706036-05
-14611	38	1	Queued	2010-10-14 17:23:48.265-05
-14613	38	2	Ready to transfer to clearinghouse.	2010-10-14 17:25:00.855335-05
-14615	38	2	Ready to transfer to clearinghouse	2010-10-15 11:46:23.678292-05
-14617	38	2	Ready to transfer to clearinghouse	2010-10-15 12:02:28.084723-05
-14619	38	3	Preparing content for transfer to clearinghouse	2010-10-15 12:18:03.586-05
-14621	39	1	Queued	2010-10-15 16:34:15.965-05
-14623	39	2	Ready to transfer to clearinghouse.	2010-10-15 16:35:42.228355-05
-14625	40	2000	Started prepare content	2010-10-15 16:42:02.569402-05
-14627	39	2	Ready to transfer to clearinghouse	2010-10-15 17:17:10.17913-05
-14629	40	2	Ready to transfer to clearinghouse	2010-10-15 17:19:45.823138-05
-14633	39	3	Preparing content for transfer to clearinghouse	2010-10-15 18:35:16.591-05
-14631	40	2	Ready to transfer to clearinghouse	2010-10-15 18:39:02.083873-05
-14635	40	3	Preparing content for transfer to clearinghouse	2010-10-15 18:40:03.258-05
-14637	39	2	Ready to transfer to clearinghouse	2010-10-15 18:51:53.539723-05
-14639	40	3	Preparing content for transfer to clearinghouse	2010-10-15 19:47:25.503-05
-14641	39	2	Ready to transfer to clearinghouse	2010-10-15 19:53:27.312148-05
-14643	39	2	Ready to transfer to clearinghouse	2010-10-15 20:08:57.158316-05
-14645	39	3	Preparing content for transfer to clearinghouse	2010-10-15 20:10:52.986-05
-14647	40	3	Preparing content for transfer to clearinghouse	2010-10-15 20:13:52.631-05
-14649	39	3	Preparing content for transfer to clearinghouse	2010-10-16 22:28:27.04-05
-14651	39	3	Preparing content for transfer to clearinghouse	2010-10-17 17:40:46.498-05
-14653	39	2	Ready to transfer to clearinghouse	2010-10-18 14:41:37.82965-05
-14657	41	2000	Started prepare content	2010-10-19 13:40:27.186044-05
-14659	41	3	Preparing content for transfer to clearinghouse	2010-10-19 13:55:29.36-05
-14661	41	4	Transferred to clearinghouse	2010-10-19 13:55:29.36-05
-14690	42	2	Ready to transfer to clearinghouse.	2010-10-20 09:05:45.402967-05
-14655	39	2	Ready to transfer to clearinghouse	2010-10-19 14:07:49.08144-05
-14663	39	2	Ready to transfer to clearinghouse	2010-10-19 14:14:17.835335-05
-14590	33	2	Ready to transfer to clearinghouse	2010-10-19 17:01:23.770904-05
-14668	33	3	Preparing content for transfer to clearinghouse	2010-10-19 17:01:28.417-05
-14669	33	3	Preparing content for transfer to clearinghouse	2010-10-19 17:01:28.966-05
-14665	40	2	Ready to transfer to clearinghouse	2010-10-19 17:25:44.490553-05
-14670	40	3	Preparing content for transfer to clearinghouse	2010-10-19 17:25:54.251-05
-14667	39	2	Ready to transfer to clearinghouse	2010-10-19 17:25:57.395878-05
-14691	42	3	Preparing content for transfer to clearinghouse	2010-10-20 09:07:24.631-05
-14692	43	1	Queued	2010-10-20 09:14:25.289-05
-14673	39	3	Preparing content for transfer to clearinghouse	2010-10-19 17:43:37.776-05
-14671	39	2	Ready to transfer to clearinghouse	2010-10-19 17:43:41.823909-05
-14672	40	2	Ready to transfer to clearinghouse	2010-10-19 17:43:52.998282-05
-14674	39	3	Preparing content for transfer to clearinghouse	2010-10-19 17:44:17.948-05
-14675	40	3	Preparing content for transfer to clearinghouse	2010-10-19 17:44:20.087-05
-14676	39	2	Ready to transfer to clearinghouse	2010-10-19 18:32:10.966374-05
-14677	40	2	Ready to transfer to clearinghouse	2010-10-19 18:32:23.7209-05
-14678	39	2	Ready to transfer to clearinghouse	2010-10-19 19:06:20.000906-05
-14680	39	3	Preparing content for transfer to clearinghouse	2010-10-19 19:06:23.368-05
-14679	40	2	Ready to transfer to clearinghouse	2010-10-19 19:06:33.555842-05
-14682	40	3	Preparing content for transfer to clearinghouse	2010-10-19 19:09:21.402-05
-14681	39	2	Ready to transfer to clearinghouse	2010-10-19 19:23:39.237966-05
-14683	40	2	Ready to transfer to clearinghouse	2010-10-19 19:23:49.130663-05
-14684	39	3	Preparing content for transfer to clearinghouse	2010-10-19 19:23:49.059-05
-14685	39	4	Transferred to clearinghouse	2010-10-19 19:23:49.059-05
-14686	40	3	Preparing content for transfer to clearinghouse	2010-10-19 19:26:38.963-05
-14687	40	4	Transferred to clearinghouse	2010-10-19 19:26:38.963-05
-14688	42	1	Queued	2010-10-20 09:05:39.071-05
-14689	42	2000	Started prepare content	2010-10-20 09:05:39.93479-05
-14693	43	2000	Started prepare content	2010-10-20 09:14:26.213948-05
-14694	43	2	Ready to transfer to clearinghouse.	2010-10-20 09:14:28.633582-05
-14695	43	3	Preparing content for transfer to clearinghouse	2010-10-20 09:19:36.049-05
-14696	43	4	Transferred to clearinghouse	2010-10-20 09:19:36.049-05
-14697	44	1	Queued	2010-10-20 09:33:05.657-05
-14698	44	2000	Started prepare content	2010-10-20 09:33:06.142115-05
-14699	44	2	Ready to transfer to clearinghouse.	2010-10-20 09:33:08.425468-05
-14700	44	3	Preparing content for transfer to clearinghouse	2010-10-20 09:35:18.079-05
-14701	45	1	Queued	2010-10-20 10:09:53.463-05
-14702	45	2000	Started prepare content	2010-10-20 10:09:54.782583-05
-14703	45	2	Ready to transfer to clearinghouse.	2010-10-20 10:09:55.744739-05
-14704	45	3	Preparing content for transfer to clearinghouse	2010-10-20 10:11:34.331-05
-14705	45	4	Transferred to clearinghouse	2010-10-20 10:11:34.331-05
-14706	46	1	Queued	2010-10-20 22:14:51.045-05
-14707	46	2000	Started prepare content	2010-10-20 22:14:51.991321-05
-14708	46	2	Ready to transfer to clearinghouse.	2010-10-20 22:14:53.227133-05
-14709	46	3	Document prepared for transfer to clearinghouse	2010-10-20 22:17:59.901-05
-14710	47	1	Queued	2010-10-20 22:28:20.563-05
-14711	48	1	Queued	2010-10-20 22:28:20.701-05
-14712	47	2000	Started prepare content	2010-10-20 22:28:21.016174-05
-14713	48	2000	Started prepare content	2010-10-20 22:28:22.590718-05
-14714	47	2	Ready to transfer to clearinghouse.	2010-10-20 22:28:22.714822-05
-14715	48	2	Ready to transfer to clearinghouse.	2010-10-20 22:28:24.686569-05
-14716	48	3	Document prepared for transfer to clearinghouse	2010-10-20 22:46:11.636-05
-14717	47	3	Document prepared for transfer to clearinghouse	2010-10-20 22:47:04.385-05
-14718	47	4	Transferred to clearinghouse	2010-10-20 22:57:20.849769-05
-14719	48	4	Transferred to clearinghouse	2010-10-20 22:57:28.005691-05
-14720	49	1	Queued	2010-10-20 23:06:43.943-05
-14721	49	2000	Started prepare content	2010-10-20 23:06:44.648114-05
-14722	49	2	Ready to transfer to clearinghouse.	2010-10-20 23:06:45.899823-05
-14723	49	3	Document prepared for transfer to clearinghouse	2010-10-20 23:07:33.927-05
-14724	49	4	Transferred to clearinghouse	2010-10-20 23:10:46.581733-05
-14725	50	1	Queued	2010-10-20 23:14:26.063-05
-14726	50	2000	Started prepare content	2010-10-20 23:14:26.536765-05
-14727	50	2	Ready to transfer to clearinghouse.	2010-10-20 23:14:27.897885-05
-14520	23	1	Queued	2010-10-13 14:00:01.169-05
-14602	35	4	Transferred to clearinghouse	2010-10-14 16:52:31.792-05
-14604	36	2000	Started prepare content	2010-10-14 17:00:17.15723-05
-14523	24	1	Queued	2010-10-13 14:11:49.614-05
-14524	25	1	Queued	2010-10-13 14:11:49.691-05
-14525	24	2000	Started prepare content	2010-10-13 14:11:50.332088-05
-14526	25	2000	Started prepare content	2010-10-13 14:11:51.630105-05
-14527	24	2	Ready to transfer to clearinghouse.	2010-10-13 14:12:26.05004-05
-14528	25	2	Ready to transfer to clearinghouse.	2010-10-13 14:12:45.932604-05
-14529	25	4	Transferred to clearinghouse	2010-10-13 14:30:10.354-05
-14530	25	4	Transferred to clearinghouse	2010-10-13 14:30:17.464-05
-14531	25	4	Transferred to clearinghouse	2010-10-13 14:30:24.366-05
-14532	25	4	Transferred to clearinghouse	2010-10-13 14:30:31.293-05
-14533	25	4	Transferred to clearinghouse	2010-10-13 14:30:38.219-05
-14534	24	4	Transferred to clearinghouse	2010-10-13 14:30:46.69-05
-14535	24	4	Transferred to clearinghouse	2010-10-13 14:30:53.572-05
-14536	24	4	Transferred to clearinghouse	2010-10-13 14:31:00.471-05
-14537	24	4	Transferred to clearinghouse	2010-10-13 14:31:07.359-05
-14538	22	4	Transferred to clearinghouse	2010-10-13 14:54:19.19-05
-14539	23	2000	Started prepare content	2010-10-13 15:09:46.386216-05
-14540	23	2	Ready to transfer to clearinghouse.	2010-10-13 15:10:00.588434-05
-14541	21	4	Transferred to clearinghouse	2010-10-13 15:14:45.515-05
-14542	23	4	Transferred to clearinghouse	2010-10-13 15:14:52.504-05
-14543	26	1	Queued	2010-10-13 15:19:51.531-05
-14544	27	1	Queued	2010-10-13 15:19:51.624-05
-14545	26	2000	Started prepare content	2010-10-13 15:19:52.688228-05
-14546	27	2000	Started prepare content	2010-10-13 15:19:53.900016-05
-14547	26	2	Ready to transfer to clearinghouse.	2010-10-13 15:20:24.867861-05
-14548	27	2	Ready to transfer to clearinghouse.	2010-10-13 15:20:50.801757-05
-14549	26	4	Transferred to clearinghouse	2010-10-13 15:24:34.526-05
-14550	27	4	Transferred to clearinghouse	2010-10-13 15:24:41.596-05
-14551	27	4	Transferred to clearinghouse	2010-10-13 15:24:43.517-05
-14552	28	1	Queued	2010-10-13 18:48:30.74-05
-14606	36	4	Transferred to clearinghouse	2010-10-14 17:02:02.871-05
-14608	37	2000	Started prepare content	2010-10-14 17:06:27.736482-05
-14555	29	1	Queued	2010-10-13 18:59:08.01-05
-14556	30	1	Queued	2010-10-13 18:59:08.093-05
-14610	37	4	Transferred to clearinghouse	2010-10-14 17:20:57.236-05
-14612	38	2000	Started prepare content	2010-10-14 17:23:48.625162-05
-14614	38	2	Ready to transfer	2010-10-14 17:39:40.335363-05
-14616	38	2	Ready to transfer to clearinghouse	2010-10-15 11:56:29.312942-05
-14564	29	2000	Started prepare content	2010-10-13 20:00:41.267297-05
-14565	29	2	Ready to transfer to clearinghouse.	2010-10-13 20:00:57.426191-05
-14566	30	2000	Started prepare content	2010-10-13 20:00:57.654246-05
-14567	28	2000	Started prepare content	2010-10-13 20:01:11.116043-05
-14568	30	2	Ready to transfer to clearinghouse.	2010-10-13 20:01:54.075033-05
-14569	28	2	Ready to transfer to clearinghouse.	2010-10-13 20:02:08.531531-05
-14570	29	3	Document prepared for transfer to clearinghouse	2010-10-13 20:05:51.233-05
-14571	30	3	Document prepared for transfer to clearinghouse	2010-10-13 20:13:33.671-05
-14572	28	3	Document prepared for transfer to clearinghouse	2010-10-13 20:21:18.327-05
-14573	31	1	Queued	2010-10-14 10:48:12.408-05
-14574	31	2000	Started prepare content	2010-10-14 10:48:13.520196-05
-14575	31	2	Ready to transfer to clearinghouse.	2010-10-14 10:48:18.076177-05
-14576	31	2	Ready to transfer to clearinghouse	2010-10-14 11:53:31.856102-05
-14577	31	2	Ready to transfer to clearinghouse	2010-10-14 12:52:33.213807-05
-14578	31	3	Document prepared for transfer to clearinghouse	2010-10-14 13:05:42.857-05
-14579	32	1	Queued	2010-10-14 13:11:30.651-05
-14580	32	2000	Started prepare content	2010-10-14 13:11:31.324808-05
-14581	32	2	Ready to transfer to clearinghouse.	2010-10-14 13:11:35.870103-05
-14582	32	2	Ready to transfer to clearinghouse	2010-10-14 13:18:56.175095-05
-14618	38	2	Ready to transfer to clearinghouse	2010-10-15 12:17:33.440164-05
-14584	33	1	Queued	2010-10-14 13:22:31.756-05
-14585	33	2000	Started prepare content	2010-10-14 13:22:32.172824-05
-14586	33	2	Ready to transfer to clearinghouse.	2010-10-14 13:22:36.461022-05
-14587	32	4	Transferred to clearinghouse	2010-10-14 13:23:40.689-05
-14583	32	4	Transferred to clearinghouse	2010-10-14 13:24:38.050366-05
-14588	33	2	Ready to transfer to	2010-10-14 13:40:48.598329-05
-14589	33	2	Ready to transfer to clearinghouse	2010-10-14 14:15:34.097813-05
-14620	38	4	Transferred to clearinghouse	2010-10-15 12:18:03.586-05
-14622	39	2000	Started prepare content	2010-10-15 16:34:16.338819-05
-14591	34	1	Queued	2010-10-14 14:54:05.242-05
-14592	34	2000	Started prepare content	2010-10-14 14:54:06.293125-05
-14593	34	2	Ready to transfer to clearinghouse.	2010-10-14 14:54:10.11842-05
-14594	34	2	Ready to transfer to clearinghouse	2010-10-14 15:15:34.80162-05
-14595	34	2	Ready to transfer to clearinghouse	2010-10-14 15:22:40.079113-05
-14596	34	3	Document prepared for transfer to clearinghouse	2010-10-14 15:27:21.642-05
-14597	35	1	Queued	2010-10-14 15:43:03.127-05
-14598	35	2000	Started prepare content	2010-10-14 15:43:03.883107-05
-14599	35	2	Ready to transfer to clearinghouse.	2010-10-14 15:43:07.911535-05
-14600	35	2	Ready to transfer to clearinghouse	2010-10-14 16:05:14.395063-05
-14624	40	1	Queued	2010-10-15 16:42:01.917-05
-14626	40	2	Ready to transfer to clearinghouse.	2010-10-15 16:43:09.613011-05
-14628	39	2	Ready to transfer to clearinghouse	2010-10-15 17:19:26.528742-05
-14630	40	3	Preparing content for transfer to clearinghouse	2010-10-15 17:21:13.142-05
-14632	39	2	Ready to transfer to clearinghouse	2010-10-15 18:33:17.458099-05
-14634	39	2	Ready to transfer to clearinghouse	2010-10-15 18:39:15.595093-05
-14636	40	2	Ready to transfer to clearinghouse	2010-10-15 18:50:20.153264-05
-14638	39	2	Ready to transfer to clearinghouse	2010-10-15 18:57:37.244243-05
-14640	40	2	Ready to transfer to clearinghouse	2010-10-15 19:53:15.082471-05
-14642	39	3	Preparing content for transfer to clearinghouse	2010-10-15 19:54:22.129-05
-14644	40	2	Ready to transfer to clearinghouse	2010-10-15 20:09:08.544704-05
-14646	39	2	Ready to transfer to clearinghouse	2010-10-16 22:27:35.215488-05
-14650	39	2	Ready to transfer to clearinghouse	2010-10-17 17:39:03.656032-05
-14652	39	2	Ready to transfer to clearinghouse	2010-10-18 14:36:24.982087-05
-14654	39	3	Preparing content for transfer to clearinghouse	2010-10-18 14:41:49.039-05
-14656	41	1	Queued	2010-10-19 13:40:25.867-05
-14658	41	2	Ready to transfer to clearinghouse.	2010-10-19 13:40:34.179105-05
-14660	41	3	Preparing content for transfer to clearinghouse	2010-10-19 13:55:29.797-05
-14662	39	3	Preparing content for transfer to clearinghouse	2010-10-19 14:07:51.002-05
-14648	40	2	Ready to transfer to clearinghouse	2010-10-19 14:11:35.660259-05
-14664	40	3	Preparing content for transfer to clearinghouse	2010-10-19 14:11:43.144-05
-14666	39	3	Preparing content for transfer to clearinghouse	2010-10-19 14:14:26.832-05
-14728	50	3	Document prepared for transfer to clearinghouse	2010-10-20 23:15:34.135-05
-14729	50	4	Transferred to clearinghouse	2010-10-20 23:30:40.909754-05
-14730	51	1	Queued	2010-10-20 23:34:03.898-05
-14731	51	2000	Started prepare content	2010-10-20 23:34:04.224007-05
-14732	51	2	Ready to transfer to clearinghouse.	2010-10-20 23:34:05.821366-05
-14733	51	3	Document prepared for transfer to clearinghouse	2010-10-20 23:35:40.047-05
-14734	51	4	Transferred to clearinghouse	2010-10-20 23:46:54.897819-05
-14735	52	1	Queued	2010-10-20 23:50:04.357-05
-14736	52	2000	Started prepare content	2010-10-20 23:50:04.829964-05
-14737	52	2	Ready to transfer to clearinghouse.	2010-10-20 23:50:06.16623-05
-14738	52	3	Document prepared for transfer to clearinghouse	2010-10-20 23:51:55.917-05
-14739	52	4	Transferred to clearinghouse	2010-10-21 16:38:02.397779-05
-14740	53	1	Queued	2010-10-21 16:42:26.324-05
-14741	53	2000	Started prepare content	2010-10-21 16:42:27.038876-05
-14742	53	2	Ready to transfer to clearinghouse.	2010-10-21 16:42:28.630771-05
-14743	53	4	Transferred to clearinghouse	2010-10-21 16:51:50.909827-05
-14744	54	1	Queued	2010-10-21 16:54:25.366-05
-14745	54	2000	Started prepare content	2010-10-21 16:54:26.000016-05
-14746	54	2	Ready to transfer to clearinghouse.	2010-10-21 16:54:27.308552-05
-14747	54	3	Preparing content for transfer to clearinghouse	2010-10-21 16:54:44.34-05
-14748	54	4	Transferred to clearinghouse	2010-10-21 16:54:44.34-05
-14749	55	1	Queued	2010-10-21 21:09:36.553-05
-14750	55	2000	Started prepare content	2010-10-21 21:09:37.592058-05
-14751	55	2	Ready to transfer to clearinghouse.	2010-10-21 21:09:39.146276-05
-14752	55	3	Preparing content for transfer to clearinghouse	2010-10-21 21:44:06.499-05
-14753	55	4	Transferred to clearinghouse	2010-10-21 21:54:17.869842-05
-14754	56	1	Queued	2010-10-21 21:56:34.489-05
-14755	56	2000	Started prepare content	2010-10-21 21:56:35.743642-05
-14756	56	2	Ready to transfer to clearinghouse.	2010-10-21 21:56:36.532456-05
-14757	56	3	Preparing content for transfer to clearinghouse	2010-10-21 21:57:23.924-05
-14758	56	4	Transferred to clearinghouse	2010-10-21 22:14:14.873823-05
-14759	57	1	Queued	2010-10-21 22:18:06.949-05
-14760	57	2000	Started prepare content	2010-10-21 22:18:10.659028-05
-14761	57	2	Ready to transfer to clearinghouse.	2010-10-21 22:18:11.828282-05
-14762	57	3	Preparing content for transfer to clearinghouse	2010-10-21 22:19:06.383-05
-14763	57	4	Transferred to clearinghouse	2010-10-21 23:01:41.201812-05
-14764	58	1	Queued	2010-10-21 23:05:03.935-05
-14765	58	2000	Started prepare content	2010-10-21 23:05:04.292768-05
-14766	58	2	Ready to transfer to clearinghouse.	2010-10-21 23:05:05.267984-05
-14767	58	3	Preparing content for transfer to clearinghouse	2010-10-21 23:06:04.064-05
+COPY transactions (transaction_id, job_id, status_code, comments, modified_date) FROM stdin;
+15125	91	1	Queued	2011-02-08 14:07:18.195-06
+15126	91	23		2011-02-11 14:54:47.881473-06
+15127	91	30		2011-02-11 14:55:14.035652-06
+15132	92	1	Queued	2011-02-11 15:59:27.001-06
+15133	92	23		2011-02-11 15:59:27.957192-06
+15134	92	30		2011-02-11 15:59:49.258482-06
+15142	92	31		2011-02-12 09:11:00.425749-06
+15143	92	32		2011-02-12 09:11:00.435612-06
+15144	92	33		2011-02-12 09:11:00.566729-06
+15146	92	-33	org.openhealthtools.ihe.pix.source.PixSourceException: org.openhealthtools.ihe.common.hl7v2.mllpclient.ClientException: Message delivery failed \n\tat org.openhealthtools.ihe.pix.source.PixSource.sendPixFeed(PixSource.java:903)\n\tat org.openhealthtools.ihe.pix.source.PixSource.sendRegistration(PixSource.java:379)\n\tat org.rsna.isn.transfercontent.ihe.Iti8.sendIti8Message(Iti8.java:134)\n\tat org.rsna.isn.transfercontent.ihe.Iti8.registerPatient(Iti8.java:112)\n\tat org.rsna.isn.transfercontent.Worker.run(Worker.java:116)\nCaused by: org.openhealthtools.ihe.common.hl7v2.mllpclient.ClientException: Message delivery failed \n\tat org.openhealthtools.ihe.common.hl7v2.mllpclient.Client.send(Client.java:679)\n\tat org.openhealthtools.ihe.common.hl7v2.mllpclient.Client.sendMsg(Client.java:485)\n\tat org.openhealthtools.ihe.pix.source.PixSource.sendPixFeed(PixSource.java:900)\n\t... 4 more\nCaused by: org.openhealthtools.ihe.common.mllp.MLLPException: Unexpected error \n\tat org.openhealthtools.ihe.common.mllp.MLLPDestination.sendMessage(MLLPDestination.java:319)\n\tat org.openhealthtools.ihe.common.hl7v2.mllpclient.Client.send(Client.java:675)\n\t... 6 more\nCaused by: java.net.ConnectException: Secure socket retries exhausted\n\tat org.openhealthtools.ihe.atna.nodeauth.handlers.TLSEnabledSocketHandler.createSecureSocket(TLSEnabledSocketHandler.java:286)\n\tat org.openhealthtools.ihe.atna.nodeauth.handlers.TLSEnabledSocketHandler.createSecureSocket(TLSEnabledSocketHandler.java:1)\n\tat org.openhealthtools.ihe.atna.nodeauth.handlers.AbstractSecureSocketHandler.getSocket(AbstractSecureSocketHandler.java:141)\n\tat org.openhealthtools.ihe.atna.nodeauth.handlers.AbstractSecureSocketHandler.getSocket(AbstractSecureSocketHandler.java:125)\n\tat org.openhealthtools.ihe.atna.nodeauth.handlers.AbstractSecureSocketHandler.getSocket(AbstractSecureSocketHandler.java:101)\n\tat org.openhealthtools.ihe.atna.nodeauth.handlers.AbstractSecureSocketHandler.getSocket(AbstractSecureSocketHandler.java:85)\n\tat org.openhealthtools.ihe.common.mllp.MLLPDestination.sendMessage(MLLPDestination.java:293)\n\t... 7 more\n	2011-02-12 09:14:07.2299-06
+15157	91	31		2011-02-14 23:48:04.696625-06
+15158	91	32		2011-02-14 23:48:04.715411-06
+15159	91	33		2011-02-14 23:48:05.077738-06
+15160	91	34		2011-02-14 23:48:07.943905-06
+15161	91	40		2011-02-14 23:49:16.582291-06
+15162	93	1	Queued	2011-02-14 23:56:01.963-06
+15170	94	1	Queued	2011-02-15 08:23:42.884-06
+15171	94	23		2011-02-15 08:23:43.519989-06
+15172	94	-21	Unable to retrive study from any remote device.	2011-02-15 08:23:43.593172-06
+15173	95	1	Queued	2011-02-15 08:24:47.546-06
+15174	95	23		2011-02-15 08:24:47.859511-06
+15175	95	30		2011-02-15 08:53:21.089211-06
+15181	95	31		2011-02-15 09:39:42.20658-06
+15182	95	32		2011-02-15 09:39:42.212244-06
+15183	95	33		2011-02-15 09:40:47.769088-06
+15184	95	34		2011-02-15 09:40:49.772642-06
+15185	95	-34	org.openhealthtools.ihe.common.ws.IHESOAPException: Error Sending SOAP Message  [Caused by org.apache.axiom.om.OMException: Error while writing to the OutputStream.]\n\tat org.openhealthtools.ihe.common.ws.AbstractIHESOAPSender.executeSend(AbstractIHESOAPSender.java:356)\n\tat org.openhealthtools.ihe.common.ws.AbstractIHESOAPSender.send(AbstractIHESOAPSender.java:484)\n\tat org.openhealthtools.ihe.xds.soap.AbstractXDSSoapClient.send(AbstractXDSSoapClient.java:219)\n\tat org.openhealthtools.ihe.xds.source.AbstractSource.submit(AbstractSource.java:191)\n\tat org.openhealthtools.ihe.xds.source.B_Source.submit(B_Source.java:93)\n\tat org.openhealthtools.ihe.xds.source.B_Source.submit(B_Source.java:82)\n\tat org.rsna.isn.transfercontent.ihe.Iti41.submitDocuments(Iti41.java:317)\n\tat org.rsna.isn.transfercontent.Worker.run(Worker.java:146)\nCaused by: org.apache.axiom.om.OMException: Error while writing to the OutputStream.\n\tat org.apache.axiom.om.impl.MIMEOutputUtils.complete(MIMEOutputUtils.java:165)\n\tat org.apache.axiom.om.impl.MTOMXMLStreamWriter.flush(MTOMXMLStreamWriter.java:159)\n\tat org.apache.axiom.om.impl.llom.OMNodeImpl.serializeAndConsume(OMNodeImpl.java:472)\n\tat org.apache.axis2.transport.http.SOAPMessageFormatter.writeTo(SOAPMessageFormatter.java:79)\n\tat org.apache.axis2.transport.http.AxisRequestEntity.writeRequest(AxisRequestEntity.java:84)\n\tat org.apache.commons.httpclient.methods.EntityEnclosingMethod.writeRequestBody(EntityEnclosingMethod.java:499)\n\tat org.apache.commons.httpclient.HttpMethodBase.writeRequest(HttpMethodBase.java:2114)\n\tat org.apache.commons.httpclient.HttpMethodBase.execute(HttpMethodBase.java:1096)\n\tat org.apache.commons.httpclient.HttpMethodDirector.executeWithRetry(HttpMethodDirector.java:398)\n\tat org.apache.commons.httpclient.HttpMethodDirector.executeMethod(HttpMethodDirector.java:171)\n\tat org.apache.commons.httpclient.HttpClient.executeMethod(HttpClient.java:397)\n\tat org.apache.commons.httpclient.HttpClient.executeMethod(HttpClient.java:346)\n\tat org.apache.axis2.transport.http.AbstractHTTPSender.executeMethod(AbstractHTTPSender.java:542)\n\tat org.apache.axis2.transport.http.HTTPSender.sendViaPost(HTTPSender.java:189)\n\tat org.apache.axis2.transport.http.HTTPSender.send(HTTPSender.java:75)\n\tat org.apache.axis2.transport.http.CommonsHTTPTransportSender.writeMessageWithCommons(CommonsHTTPTransportSender.java:371)\n\tat org.apache.axis2.transport.http.CommonsHTTPTransportSender.invoke(CommonsHTTPTransportSender.java:209)\n\tat org.apache.axis2.engine.AxisEngine.send(AxisEngine.java:448)\n\tat org.apache.axis2.description.OutInAxisOperationClient.send(OutInAxisOperation.java:401)\n\tat org.apache.axis2.description.OutInAxisOperationClient.executeImpl(OutInAxisOperation.java:228)\n\tat org.apache.axis2.client.OperationClient.execute(OperationClient.java:163)\n\tat org.openhealthtools.ihe.common.ws.AbstractIHESOAPSender.executeSend(AbstractIHESOAPSender.java:348)\n\t... 7 more\nCaused by: java.net.SocketException: Broken pipe\n\tat java.net.SocketOutputStream.socketWrite0(Native Method)\n\tat java.net.SocketOutputStream.socketWrite(SocketOutputStream.java:92)\n\tat java.net.SocketOutputStream.write(SocketOutputStream.java:136)\n\tat com.sun.net.ssl.internal.ssl.OutputRecord.writeBuffer(OutputRecord.java:295)\n\tat com.sun.net.ssl.internal.ssl.OutputRecord.write(OutputRecord.java:284)\n\tat com.sun.net.ssl.internal.ssl.SSLSocketImpl.writeRecordInternal(SSLSocketImpl.java:734)\n\tat com.sun.net.ssl.internal.ssl.SSLSocketImpl.writeRecord(SSLSocketImpl.java:722)\n\tat com.sun.net.ssl.internal.ssl.AppOutputStream.write(AppOutputStream.java:59)\n\tat java.io.BufferedOutputStream.write(BufferedOutputStream.java:105)\n\tat org.apache.commons.httpclient.ChunkedOutputStream.flushCacheWithAppend(ChunkedOutputStream.java:121)\n\tat org.apache.commons.httpclient.ChunkedOutputStream.write(ChunkedOutputStream.java:179)\n\tat javax.activation.DataHandler.writeTo(DataHandler.java:294)\n\tat javax.mail.internet.MimeBodyPart.writeTo(MimeBodyPart.java:452)\n\tat org.apache.axiom.om.impl.MIMEOutputUtils.writeBodyPart(MIMEOutputUtils.java:245)\n\tat org.apache.axiom.om.impl.MIMEOutputUtils.complete(MIMEOutputUtils.java:151)\n\t... 28 more\n	2011-02-15 09:43:56.17922-06
+15186	93	23		2011-02-15 12:40:43.653091-06
+15187	93	30		2011-02-15 12:44:56.736689-06
+15188	93	31		2011-02-15 12:44:56.783104-06
+15189	93	32		2011-02-15 12:44:56.789926-06
+15190	93	33		2011-02-15 12:44:58.779839-06
+15191	93	34		2011-02-15 12:45:00.189664-06
+15192	93	40		2011-02-15 12:54:07.32021-06
 \.
 
 
@@ -4871,12 +2394,12 @@ COPY transactions (transaction_id, job_id, status, status_message, modified_date
 COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date) FROM stdin;
 2	mwarnock	Max Warnock	mwarnock@umm.edu	a047ae44b02d035279c9ceea96bf423025ed992a	6c2e285bc6568a104281f833b0c3ad3aa67c319f	2010-09-14 13:44:57.442-05	2010-09-14 13:54:41.213-05	\N	\N	2	2010-09-14 08:54:41.186345-05
 3	admin	admin	fake@fakey.com	ee4f514bc9e99c110745eb7cd8f4bebdf561d296	57e3276199a2f4d26de6ad4a9a894cd7b7e4d6f1	2010-09-16 18:18:54.645-05	2010-09-16 18:18:54.645-05	\N	\N	2	\N
-5	sglanger	steve 	sglanger@nibib-2.wustl.edu	8a786f2a6223980d6622029ef81ac92321272658	ad10d719ccdb56b48672cedce3f911c689b76652	2010-09-16 18:58:29.457-05	2010-09-16 19:00:20.05-05	\N	\N	0	2010-09-16 14:00:20.043517-05
 6	femi	Femi Oyesanya	oyesanyf@gmail.com	7847ad71ff43885836c5a4d0cf7df138572f3f12	7fda4f63215675ccc0c192e43214f1f1345248d4	2010-09-16 20:31:42.147-05	2010-09-16 20:31:42.147-05	\N	\N	1	\N
 4	wtellis	Wyatt Tellis	wyatt.tellis@ucsf.edu	e7e12ac655784d9910cb6354161a4cf4d21999d7	4539f3ad4ff395479c95755e5f0e90dcea37c98e	2010-09-16 18:24:11.356-05	2010-09-28 13:43:18.389-05	\N	\N	2	2010-09-28 13:43:18.382073-05
 7	mdaly	Daly, Mark	mdaly@umm.edu	d1c7af1359d856baf55bbd717b3b232777caa85c	1b598317c926d775e9e00b537971b3283f06ea64	2010-10-13 09:38:49.245-05	2010-10-13 09:39:33.089-05	\N	\N	2	2010-10-13 11:38:12.721709-05
 8	wzhu	Zhu, Wendy	wzhu@radiology.bsd.uchicago.edu	06f1a1a07f094e9d689efde53a0e809cdf82f67b	ddf446d9114c24dbf3d0beb7256c074a3fe3bd2d	2010-10-14 15:40:31.157-05	2010-10-14 15:40:31.157-05	\N	\N	2	\N
 9	smoore	steve moore	smoore@wustl.edu	6dcc9a4a647120ac75dc0ae39ffe6888fcef8285	2f2dfbd295c07272f5580da43cb059d400d30188	2010-10-14 16:01:19.875-05	2010-10-14 16:01:19.875-05	\N	\N	2	\N
+5	sglanger	steve 	sglanger@nibib-2.wustl.edu	8a786f2a6223980d6622029ef81ac92321272658	ad10d719ccdb56b48672cedce3f911c689b76652	2010-09-16 18:58:29.457-05	2011-02-08 13:44:31.052-06	\N	\N	2	2011-02-08 13:44:31.044349-06
 \.
 
 
@@ -4905,6 +2428,30 @@ ALTER TABLE ONLY exams
 
 
 --
+-- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_accession_numbers
+    ADD CONSTRAINT pk_hipaa_audit_accession_number_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_mrns
+    ADD CONSTRAINT pk_hipaa_audit_mrn_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY hipaa_audit_views
+    ADD CONSTRAINT pk_hipaa_audit_view_id PRIMARY KEY (id);
+
+
+--
 -- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -4929,14 +2476,6 @@ ALTER TABLE ONLY configurations
 
 
 --
--- Name: pk_map_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
---
-
-ALTER TABLE ONLY patient_rsna_ids
-    ADD CONSTRAINT pk_map_id PRIMARY KEY (map_id);
-
-
---
 -- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -4958,6 +2497,14 @@ ALTER TABLE ONLY reports
 
 ALTER TABLE ONLY roles
     ADD CONSTRAINT pk_role_id PRIMARY KEY (role_id);
+
+
+--
+-- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY status_codes
+    ADD CONSTRAINT pk_status_code PRIMARY KEY (status_code);
 
 
 --
@@ -4998,6 +2545,14 @@ ALTER TABLE ONLY exams
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT uq_login UNIQUE (user_login);
+
+
+--
+-- Name: uq_single_use_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY job_sets
+    ADD CONSTRAINT uq_single_use_patient_id UNIQUE (single_use_patient_id);
 
 
 --
@@ -5056,16 +2611,6 @@ CREATE TRIGGER tr_jobs_modified_date
 
 CREATE TRIGGER tr_patient_merge_events_modified_date
     BEFORE UPDATE ON patient_merge_events
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_patient_rsna_ids_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_patient_rsna_ids_modified_date
-    BEFORE UPDATE ON patient_rsna_ids
     FOR EACH ROW
     EXECUTE PROCEDURE usp_update_modified_date();
 
@@ -5187,19 +2732,19 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: fk_patient_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
---
-
-ALTER TABLE ONLY patient_rsna_ids
-    ADD CONSTRAINT fk_patient_id FOREIGN KEY (patient_id) REFERENCES patients(patient_id);
-
-
---
 -- Name: fk_report_id; Type: FK CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY jobs
     ADD CONSTRAINT fk_report_id FOREIGN KEY (report_id) REFERENCES reports(report_id);
+
+
+--
+-- Name: fk_status_code; Type: FK CONSTRAINT; Schema: public; Owner: edge
+--
+
+ALTER TABLE ONLY transactions
+    ADD CONSTRAINT fk_status_code FOREIGN KEY (status_code) REFERENCES status_codes(status_code);
 
 
 --
