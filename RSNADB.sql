@@ -34,13 +34,13 @@ SET escape_string_warning = off;
 COMMENT ON DATABASE rsnadb IS 'RSNA2 Edge Device Database
 Authors: Wendy Zhu (Univ of Chicago) and Steve G Langer (Mayo Clinic)
 
-Copyright (c) <2010>, <Radiological Society of North America>
+Copyright (c) 2010, Radiological Society of North America
   All rights reserved.
   Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
   Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
   Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-  Neither the name of the <RSNA> nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
- 
+  Neither the name of the RSNA nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
   CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
   WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -68,23 +68,6 @@ CREATE PROCEDURAL LANGUAGE plpgsql;
 ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
 
 SET search_path = public, pg_catalog;
-
---
--- Name: usp_update_modified_date(); Type: FUNCTION; Schema: public; Owner: edge
---
-
-CREATE FUNCTION usp_update_modified_date() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$BEGIN
-
-new. modified_date=CURRENT_TIMESTAMP;
-
-RETURN new;
-
-END;$$;
-
-
-ALTER FUNCTION public.usp_update_modified_date() OWNER TO edge;
 
 SET default_tablespace = '';
 
@@ -218,7 +201,7 @@ ALTER SEQUENCE exams_exam_id_seq OWNED BY exams.exam_id;
 -- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('exams_exam_id_seq', 91, true);
+SELECT pg_catalog.setval('exams_exam_id_seq', 101, true);
 
 
 --
@@ -268,7 +251,7 @@ ALTER SEQUENCE hipaa_audit_accession_numbers_id_seq OWNED BY hipaa_audit_accessi
 -- Name: hipaa_audit_accession_numbers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 331, true);
+SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 388, true);
 
 
 --
@@ -318,7 +301,7 @@ ALTER SEQUENCE hipaa_audit_mrns_id_seq OWNED BY hipaa_audit_mrns.id;
 -- Name: hipaa_audit_mrns_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2073, true);
+SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2220, true);
 
 
 --
@@ -368,7 +351,7 @@ ALTER SEQUENCE hipaa_audit_views_id_seq OWNED BY hipaa_audit_views.id;
 -- Name: hipaa_audit_views_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1440, true);
+SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1662, true);
 
 
 --
@@ -381,7 +364,7 @@ CREATE TABLE job_sets (
     user_id integer NOT NULL,
     email_address character varying(255),
     modified_date timestamp with time zone DEFAULT now(),
-    delay_in_hrs integer DEFAULT 0,
+    delay_in_hrs integer DEFAULT 72,
     single_use_patient_id character varying(64) NOT NULL
 );
 
@@ -428,7 +411,7 @@ ALTER SEQUENCE job_sets_job_set_id_seq OWNED BY job_sets.job_set_id;
 -- Name: job_sets_job_set_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('job_sets_job_set_id_seq', 94, true);
+SELECT pg_catalog.setval('job_sets_job_set_id_seq', 112, true);
 
 
 --
@@ -480,7 +463,7 @@ ALTER SEQUENCE jobs_job_id_seq OWNED BY jobs.job_id;
 -- Name: jobs_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('jobs_job_id_seq', 95, true);
+SELECT pg_catalog.setval('jobs_job_id_seq', 114, true);
 
 
 --
@@ -603,7 +586,7 @@ ALTER SEQUENCE patients_patient_id_seq OWNED BY patients.patient_id;
 -- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('patients_patient_id_seq', 87, true);
+SELECT pg_catalog.setval('patients_patient_id_seq', 90, true);
 
 
 --
@@ -658,7 +641,7 @@ ALTER SEQUENCE reports_report_id_seq OWNED BY reports.report_id;
 -- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('reports_report_id_seq', 166, true);
+SELECT pg_catalog.setval('reports_report_id_seq', 186, true);
 
 
 --
@@ -747,7 +730,7 @@ ALTER TABLE public.status_codes OWNER TO edge;
 -- Name: TABLE status_codes; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE status_codes IS 'Maps a job status number to a human readable format. 
+COMMENT ON TABLE status_codes IS 'Maps a job status number to a human readable format.
 
 Values in the 20s are owned by the COntent-prep app
 
@@ -865,7 +848,7 @@ ALTER SEQUENCE transactions_transaction_id_seq OWNED BY transactions.transaction
 -- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('transactions_transaction_id_seq', 15192, true);
+SELECT pg_catalog.setval('transactions_transaction_id_seq', 16078, true);
 
 
 --
@@ -1049,16 +1032,14 @@ ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::
 --
 
 COPY configurations (key, value, modified_date) FROM stdin;
-dcm-dir-path	/rsna/dcm/	2010-11-02 09:27:06.248449-05
-tmp-dir-path	/rsna/tmp	2010-11-02 09:33:17.413413-05
 iti41-source-id	1.3.6.1.4.1.19376.2.840.1.1.2.1	2010-12-20 13:17:12.478876-06
-scp-ae-title	RSNA-NIBIB-4	2011-01-10 18:35:16.668828-06
-scu-ae-title	RSNA-NIBIB-4	2011-01-10 18:43:13.369949-06
-consent-expired-days	90	2011-01-13 12:38:28.356374-06
-iti8-pix-uri	mllps://173.35.208.226:8888	2011-01-18 17:28:11.313511-06
-iti8-reg-uri	mllps://173.35.208.226:8890	2011-01-18 17:28:41.684491-06
-iti41-endpoint-uri-test	http://localhost:8888/	2011-02-03 19:10:33.864317-06
-iti41-endpoint-uri	https://173.35.208.226/services/xdsrepositoryb	2011-02-14 11:50:51.109287-06
+iti8-pix-uri	mllps://clearinghouse.lifeimage.com:8888	2011-03-14 20:37:44.484487-05
+iti8-reg-uri	mllps://clearinghouse.lifeimage.com:8890	2011-03-14 20:38:09.214142-05
+iti41-endpoint-uri-test	https://localhost:9443/	2011-02-03 19:10:33.864317-06
+iti41-endpoint-uri	https://clearinghouse.lifeimage.com/services/xdsrepositoryb	2011-03-14 20:41:19.216294-05
+iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
+scp-ae-title	RSNA-ISN	2011-01-10 18:35:16.668828-06
+scu-ae-title	RSNA-ISN	2011-01-10 18:43:13.369949-06
 \.
 
 
@@ -1067,7 +1048,6 @@ iti41-endpoint-uri	https://173.35.208.226/services/xdsrepositoryb	2011-02-14 11:
 --
 
 COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
-1	DCM4CHEE	172.20.175.63	11112	2010-09-17 11:51:23.42469-05
 \.
 
 
@@ -1205,14 +1185,6 @@ COPY transactions (transaction_id, job_id, status_code, comments, modified_date)
 --
 
 COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date, active) FROM stdin;
-2	mwarnock	Max Warnock	mwarnock@umm.edu	a047ae44b02d035279c9ceea96bf423025ed992a	6c2e285bc6568a104281f833b0c3ad3aa67c319f	2010-09-14 13:44:57.442-05	2010-09-14 13:54:41.213-05	\N	\N	2	2011-08-24 15:09:21.853-05	t
-3	admin	admin	fake@fakey.com	ee4f514bc9e99c110745eb7cd8f4bebdf561d296	57e3276199a2f4d26de6ad4a9a894cd7b7e4d6f1	2010-09-16 18:18:54.645-05	2010-09-16 18:18:54.645-05	\N	\N	2	2011-08-24 15:09:21.853-05	t
-6	femi	Femi Oyesanya	oyesanyf@gmail.com	7847ad71ff43885836c5a4d0cf7df138572f3f12	7fda4f63215675ccc0c192e43214f1f1345248d4	2010-09-16 20:31:42.147-05	2010-09-16 20:31:42.147-05	\N	\N	1	2011-08-24 15:09:21.853-05	t
-4	wtellis	Wyatt Tellis	wyatt.tellis@ucsf.edu	e7e12ac655784d9910cb6354161a4cf4d21999d7	4539f3ad4ff395479c95755e5f0e90dcea37c98e	2010-09-16 18:24:11.356-05	2010-09-28 13:43:18.389-05	\N	\N	2	2011-08-24 15:09:21.853-05	t
-7	mdaly	Daly, Mark	mdaly@umm.edu	d1c7af1359d856baf55bbd717b3b232777caa85c	1b598317c926d775e9e00b537971b3283f06ea64	2010-10-13 09:38:49.245-05	2010-10-13 09:39:33.089-05	\N	\N	2	2011-08-24 15:09:21.853-05	t
-8	wzhu	Zhu, Wendy	wzhu@radiology.bsd.uchicago.edu	06f1a1a07f094e9d689efde53a0e809cdf82f67b	ddf446d9114c24dbf3d0beb7256c074a3fe3bd2d	2010-10-14 15:40:31.157-05	2010-10-14 15:40:31.157-05	\N	\N	2	2011-08-24 15:09:21.853-05	t
-9	smoore	steve moore	smoore@wustl.edu	6dcc9a4a647120ac75dc0ae39ffe6888fcef8285	2f2dfbd295c07272f5580da43cb059d400d30188	2010-10-14 16:01:19.875-05	2010-10-14 16:01:19.875-05	\N	\N	2	2011-08-24 15:09:21.853-05	t
-5	sglanger	steve 	sglanger@nibib-2.wustl.edu	8a786f2a6223980d6622029ef81ac92321272658	ad10d719ccdb56b48672cedce3f911c689b76652	2010-09-16 18:58:29.457-05	2011-02-08 13:44:31.052-06	\N	\N	2	2011-08-24 15:09:21.853-05	t
 \.
 
 
@@ -1374,126 +1346,6 @@ ALTER TABLE ONLY users
 
 ALTER TABLE ONLY job_sets
     ADD CONSTRAINT uq_single_use_patient_id UNIQUE (single_use_patient_id);
-
-
---
--- Name: tr_configurations_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_configurations_modified_date
-    BEFORE UPDATE ON configurations
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_devices_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_devices_modified_date
-    BEFORE UPDATE ON devices
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_exams_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_exams_modified_date
-    BEFORE UPDATE ON exams
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_job_sets_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_job_sets_modified_date
-    BEFORE UPDATE ON job_sets
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_jobs_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_jobs_modified_date
-    BEFORE UPDATE ON jobs
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_patient_merge_events_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_patient_merge_events_modified_date
-    BEFORE UPDATE ON patient_merge_events
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_patients_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_patients_modified_date
-    BEFORE UPDATE ON patients
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_reports_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_reports_modified_date
-    BEFORE UPDATE ON reports
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_roles_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_roles_modified_date
-    BEFORE UPDATE ON roles
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_studies_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_studies_modified_date
-    BEFORE UPDATE ON studies
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_transactions_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_transactions_modified_date
-    BEFORE UPDATE ON transactions
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
-
-
---
--- Name: tr_users_modified_date; Type: TRIGGER; Schema: public; Owner: edge
---
-
-CREATE TRIGGER tr_users_modified_date
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE PROCEDURE usp_update_modified_date();
 
 
 --

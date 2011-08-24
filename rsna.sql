@@ -56,7 +56,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE configurations (
@@ -82,7 +82,7 @@ e) etc';
 
 
 --
--- Name: devices; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: devices; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE devices (
@@ -115,8 +115,8 @@ b) ?
 CREATE SEQUENCE devices_device_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -137,7 +137,7 @@ SELECT pg_catalog.setval('devices_device_id_seq', 1, true);
 
 
 --
--- Name: exams; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: exams; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE exams (
@@ -165,8 +165,8 @@ COMMENT ON TABLE exams IS 'A listing of all ordered DICOM exams the system knows
 CREATE SEQUENCE exams_exam_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -187,7 +187,7 @@ SELECT pg_catalog.setval('exams_exam_id_seq', 101, true);
 
 
 --
--- Name: hipaa_audit_accession_numbers; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: hipaa_audit_accession_numbers; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE hipaa_audit_accession_numbers (
@@ -215,8 +215,8 @@ COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking fo
 CREATE SEQUENCE hipaa_audit_accession_numbers_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -237,7 +237,7 @@ SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 388, true);
 
 
 --
--- Name: hipaa_audit_mrns; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: hipaa_audit_mrns; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE hipaa_audit_mrns (
@@ -265,8 +265,8 @@ COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device
 CREATE SEQUENCE hipaa_audit_mrns_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -287,7 +287,7 @@ SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2220, true);
 
 
 --
--- Name: hipaa_audit_views; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: hipaa_audit_views; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE hipaa_audit_views (
@@ -315,8 +315,8 @@ COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge devic
 CREATE SEQUENCE hipaa_audit_views_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -337,7 +337,7 @@ SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1662, true);
 
 
 --
--- Name: job_sets; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: job_sets; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE job_sets (
@@ -375,8 +375,8 @@ COMMENT ON COLUMN job_sets.email_address IS 'the email address the patient claim
 CREATE SEQUENCE job_sets_job_set_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -397,7 +397,7 @@ SELECT pg_catalog.setval('job_sets_job_set_id_seq', 112, true);
 
 
 --
--- Name: jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE jobs (
@@ -427,8 +427,8 @@ COMMENT ON TABLE jobs IS 'This is one of a pair of tables that bind a patient to
 CREATE SEQUENCE jobs_job_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -449,7 +449,7 @@ SELECT pg_catalog.setval('jobs_job_id_seq', 114, true);
 
 
 --
--- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE patient_merge_events (
@@ -480,8 +480,8 @@ COMMENT ON TABLE patient_merge_events IS 'When it''s required to swap a patient 
 CREATE SEQUENCE patient_merge_events_event_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -502,7 +502,7 @@ SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
 
 
 --
--- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE patients (
@@ -550,8 +550,8 @@ COMMENT ON COLUMN patients.mrn IS 'the actual medical recrod number from the med
 CREATE SEQUENCE patients_patient_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -572,7 +572,7 @@ SELECT pg_catalog.setval('patients_patient_id_seq', 90, true);
 
 
 --
--- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE reports (
@@ -605,8 +605,8 @@ COMMENT ON TABLE reports IS 'This table contains exam report and exam status as 
 CREATE SEQUENCE reports_report_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -627,7 +627,7 @@ SELECT pg_catalog.setval('reports_report_id_seq', 186, true);
 
 
 --
--- Name: roles; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: roles; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE roles (
@@ -648,7 +648,55 @@ COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user'
 
 
 --
--- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: schema_version; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE schema_version (
+    id integer NOT NULL,
+    version character varying,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.schema_version OWNER TO edge;
+
+--
+-- Name: TABLE schema_version; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE schema_version IS 'Store database schema version';
+
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE schema_version_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.schema_version_id_seq OWNER TO edge;
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE schema_version_id_seq OWNED BY schema_version.id;
+
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
+
+
+--
+-- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE status_codes (
@@ -672,7 +720,7 @@ Values in the 30s are owned by the Content-send app';
 
 
 --
--- Name: studies; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: studies; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE studies (
@@ -701,8 +749,8 @@ COMMENT ON TABLE studies IS 'DICOM uid info for exams listed by accession in tab
 CREATE SEQUENCE studies_study_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -723,7 +771,7 @@ SELECT pg_catalog.setval('studies_study_id_seq', 236, true);
 
 
 --
--- Name: transactions; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: transactions; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE transactions (
@@ -764,8 +812,8 @@ Content transfer looks for status 2 and promotes to 3 on exit
 CREATE SEQUENCE transactions_transaction_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -786,7 +834,7 @@ SELECT pg_catalog.setval('transactions_transaction_id_seq', 16078, true);
 
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: edge; Tablespace:
+-- Name: users; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
 CREATE TABLE users (
@@ -801,7 +849,8 @@ CREATE TABLE users (
     remember_token character varying(40) DEFAULT NULL::character varying,
     remember_token_expires_at timestamp with time zone,
     role_id integer NOT NULL,
-    modified_date timestamp with time zone DEFAULT now()
+    modified_date timestamp with time zone DEFAULT now(),
+    active boolean DEFAULT true
 );
 
 
@@ -821,8 +870,8 @@ COMMENT ON TABLE users IS 'Combined with table Roles, this table defines who can
 CREATE SEQUENCE users_user_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MINVALUE
     NO MAXVALUE
+    NO MINVALUE
     CACHE 1;
 
 
@@ -933,6 +982,13 @@ ALTER TABLE reports ALTER COLUMN report_id SET DEFAULT nextval('reports_report_i
 
 
 --
+-- Name: id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE schema_version ALTER COLUMN id SET DEFAULT nextval('schema_version_id_seq'::regclass);
+
+
+--
 -- Name: study_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
@@ -956,7 +1012,6 @@ ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::
 --
 -- Data for Name: configurations; Type: TABLE DATA; Schema: public; Owner: edge
 --
--- tmp-dir-path	/rsna/tmp	2010-11-02 09:33:17.413413-05
 
 COPY configurations (key, value, modified_date) FROM stdin;
 iti41-source-id	1.3.6.1.4.1.19376.2.840.1.1.2.1	2010-12-20 13:17:12.478876-06
@@ -1059,6 +1114,14 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 
 
 --
+-- Data for Name: schema_version; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY schema_version (id, version, modified_date) FROM stdin;
+\.
+
+
+--
 -- Data for Name: status_codes; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
@@ -1103,12 +1166,12 @@ COPY transactions (transaction_id, job_id, status_code, comments, modified_date)
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date) FROM stdin;
+COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date, active) FROM stdin;
 \.
 
 
 --
--- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY devices
@@ -1116,7 +1179,7 @@ ALTER TABLE ONLY devices
 
 
 --
--- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY patient_merge_events
@@ -1124,7 +1187,7 @@ ALTER TABLE ONLY patient_merge_events
 
 
 --
--- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY exams
@@ -1132,7 +1195,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY hipaa_audit_accession_numbers
@@ -1140,7 +1203,7 @@ ALTER TABLE ONLY hipaa_audit_accession_numbers
 
 
 --
--- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY hipaa_audit_mrns
@@ -1148,7 +1211,7 @@ ALTER TABLE ONLY hipaa_audit_mrns
 
 
 --
--- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY hipaa_audit_views
@@ -1156,7 +1219,15 @@ ALTER TABLE ONLY hipaa_audit_views
 
 
 --
--- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY schema_version
+    ADD CONSTRAINT pk_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY jobs
@@ -1164,7 +1235,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY job_sets
@@ -1172,7 +1243,7 @@ ALTER TABLE ONLY job_sets
 
 
 --
--- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY configurations
@@ -1180,7 +1251,7 @@ ALTER TABLE ONLY configurations
 
 
 --
--- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY patients
@@ -1188,7 +1259,7 @@ ALTER TABLE ONLY patients
 
 
 --
--- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY reports
@@ -1196,7 +1267,7 @@ ALTER TABLE ONLY reports
 
 
 --
--- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY roles
@@ -1204,7 +1275,7 @@ ALTER TABLE ONLY roles
 
 
 --
--- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY status_codes
@@ -1212,7 +1283,7 @@ ALTER TABLE ONLY status_codes
 
 
 --
--- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY studies
@@ -1220,7 +1291,7 @@ ALTER TABLE ONLY studies
 
 
 --
--- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY transactions
@@ -1228,7 +1299,7 @@ ALTER TABLE ONLY transactions
 
 
 --
--- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY users
@@ -1236,7 +1307,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY exams
@@ -1244,7 +1315,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY users
@@ -1252,7 +1323,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_single_use_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
+-- Name: uq_single_use_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
 --
 
 ALTER TABLE ONLY job_sets
