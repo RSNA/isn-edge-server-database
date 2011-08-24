@@ -8,7 +8,7 @@ CREATE TABLE schema_version
   id serial NOT NULL,
   version character varying,
   modified_date timestamp with time zone DEFAULT now(),
-  CONSTRAIN pk_id PRIMARY KEY (id)
+  CONSTRAINT pk_id PRIMARY KEY (id)
 )
 WITH (
   OIDS=FALSE
