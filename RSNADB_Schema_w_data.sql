@@ -46,6 +46,7 @@ ALTER TABLE ONLY public.patients DROP CONSTRAINT pk_patient_id;
 ALTER TABLE ONLY public.configurations DROP CONSTRAINT pk_key;
 ALTER TABLE ONLY public.job_sets DROP CONSTRAINT pk_job_set_id;
 ALTER TABLE ONLY public.jobs DROP CONSTRAINT pk_job_id;
+ALTER TABLE ONLY public.schema_version DROP CONSTRAINT pk_id;
 ALTER TABLE ONLY public.hipaa_audit_views DROP CONSTRAINT pk_hipaa_audit_view_id;
 ALTER TABLE ONLY public.hipaa_audit_mrns DROP CONSTRAINT pk_hipaa_audit_mrn_id;
 ALTER TABLE ONLY public.hipaa_audit_accession_numbers DROP CONSTRAINT pk_hipaa_audit_accession_number_id;
@@ -55,6 +56,7 @@ ALTER TABLE ONLY public.devices DROP CONSTRAINT pk_device_id;
 ALTER TABLE public.users ALTER COLUMN user_id DROP DEFAULT;
 ALTER TABLE public.transactions ALTER COLUMN transaction_id DROP DEFAULT;
 ALTER TABLE public.studies ALTER COLUMN study_id DROP DEFAULT;
+ALTER TABLE public.schema_version ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE public.reports ALTER COLUMN report_id DROP DEFAULT;
 ALTER TABLE public.patients ALTER COLUMN patient_id DROP DEFAULT;
 ALTER TABLE public.patient_merge_events ALTER COLUMN event_id DROP DEFAULT;
@@ -74,6 +76,8 @@ DROP TABLE public.transactions;
 DROP SEQUENCE public.studies_study_id_seq;
 DROP TABLE public.studies;
 DROP TABLE public.status_codes;
+DROP SEQUENCE public.schema_version_id_seq;
+DROP TABLE public.schema_version;
 DROP TABLE public.roles;
 DROP SEQUENCE public.reports_report_id_seq;
 DROP TABLE public.reports;
@@ -771,6 +775,54 @@ COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user'
 
 
 --
+-- Name: schema_version; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE schema_version (
+    id integer NOT NULL,
+    version character varying,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.schema_version OWNER TO edge;
+
+--
+-- Name: TABLE schema_version; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE schema_version IS 'Store database schema version';
+
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE schema_version_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.schema_version_id_seq OWNER TO edge;
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE schema_version_id_seq OWNED BY schema_version.id;
+
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
+
+
+--
 -- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -924,7 +976,8 @@ CREATE TABLE users (
     remember_token character varying(40) DEFAULT NULL::character varying,
     remember_token_expires_at timestamp with time zone,
     role_id integer NOT NULL,
-    modified_date timestamp with time zone DEFAULT now()
+    modified_date timestamp with time zone DEFAULT now(),
+    active boolean DEFAULT true
 );
 
 
@@ -1053,6 +1106,13 @@ ALTER TABLE patients ALTER COLUMN patient_id SET DEFAULT nextval('patients_patie
 --
 
 ALTER TABLE reports ALTER COLUMN report_id SET DEFAULT nextval('reports_report_id_seq'::regclass);
+
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE schema_version ALTER COLUMN id SET DEFAULT nextval('schema_version_id_seq'::regclass);
 
 
 --
@@ -1982,6 +2042,8 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 1193	0:0:0:0:0:0:0:1	wtellis	/exams/add_to_cart?id=86	2011-01-26 22:11:03-06
 1194	0:0:0:0:0:0:0:1	wtellis	/exams/show_cart	2011-01-26 22:11:05-06
 1195	0:0:0:0:0:0:0:1	wtellis	/exams/validate_cart?authenticity_token=Tx%2F2opSQ6arfCtPF1l8%2BxdJlB%2FZqe57aAKET3XEOxE0%3D&exam_ids%5B%5D=86&patient_password=test4567&patient_password_confirmation=test4567&email=wyatt.tellis%40ucsf.edu	2011-01-26 22:11:32-06
+1264	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-28 12:40:43-06
+1265	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=80&commit=Yes	2011-01-28 12:41:09-06
 1196	0:0:0:0:0:0:0:1	wtellis	/exams/send_cart?authenticity_token=Tx%2F2opSQ6arfCtPF1l8%2BxdJlB%2FZqe57aAKET3XEOxE0%3D&exam_ids%5B%5D=86&patient_password=test4567&patient_password_confirmation=test4567&email=wyatt.tellis%40ucsf.edu	2011-01-26 22:11:34-06
 1197	0:0:0:0:0:0:0:1	wtellis	/exams?patient_id=82&token=u9nx8oj3	2011-01-26 22:11:36-06
 1198	0:0:0:0:0:0:0:1	wtellis	/exams/print_patient_info?token=u9nx8oj3	2011-01-26 22:11:38-06
@@ -2050,8 +2112,6 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 1261	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-27 12:12:46-06
 1262	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-27 12:12:49-06
 1263	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-28 12:40:30-06
-1264	0:0:0:0:0:0:0:1	mwarnock	/patients/search?search=t&search_type=simple	2011-01-28 12:40:43-06
-1265	0:0:0:0:0:0:0:1	mwarnock	/patients/record_consent?patient_id=80&commit=Yes	2011-01-28 12:41:09-06
 1266	0:0:0:0:0:0:0:1	mwarnock	/exams	2011-01-28 12:41:10-06
 1267	0:0:0:0:0:0:0:1	mwarnock	/patients/new	2011-01-28 12:41:32-06
 1268	0:0:0:0:0:0:0:1	mwarnock	/	2011-01-28 12:41:33-06
@@ -2313,6 +2373,14 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 
 
 --
+-- Data for Name: schema_version; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY schema_version (id, version, modified_date) FROM stdin;
+\.
+
+
+--
 -- Data for Name: status_codes; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
@@ -2391,15 +2459,15 @@ COPY transactions (transaction_id, job_id, status_code, comments, modified_date)
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date) FROM stdin;
-2	mwarnock	Max Warnock	mwarnock@umm.edu	a047ae44b02d035279c9ceea96bf423025ed992a	6c2e285bc6568a104281f833b0c3ad3aa67c319f	2010-09-14 13:44:57.442-05	2010-09-14 13:54:41.213-05	\N	\N	2	2010-09-14 08:54:41.186345-05
-3	admin	admin	fake@fakey.com	ee4f514bc9e99c110745eb7cd8f4bebdf561d296	57e3276199a2f4d26de6ad4a9a894cd7b7e4d6f1	2010-09-16 18:18:54.645-05	2010-09-16 18:18:54.645-05	\N	\N	2	\N
-6	femi	Femi Oyesanya	oyesanyf@gmail.com	7847ad71ff43885836c5a4d0cf7df138572f3f12	7fda4f63215675ccc0c192e43214f1f1345248d4	2010-09-16 20:31:42.147-05	2010-09-16 20:31:42.147-05	\N	\N	1	\N
-4	wtellis	Wyatt Tellis	wyatt.tellis@ucsf.edu	e7e12ac655784d9910cb6354161a4cf4d21999d7	4539f3ad4ff395479c95755e5f0e90dcea37c98e	2010-09-16 18:24:11.356-05	2010-09-28 13:43:18.389-05	\N	\N	2	2010-09-28 13:43:18.382073-05
-7	mdaly	Daly, Mark	mdaly@umm.edu	d1c7af1359d856baf55bbd717b3b232777caa85c	1b598317c926d775e9e00b537971b3283f06ea64	2010-10-13 09:38:49.245-05	2010-10-13 09:39:33.089-05	\N	\N	2	2010-10-13 11:38:12.721709-05
-8	wzhu	Zhu, Wendy	wzhu@radiology.bsd.uchicago.edu	06f1a1a07f094e9d689efde53a0e809cdf82f67b	ddf446d9114c24dbf3d0beb7256c074a3fe3bd2d	2010-10-14 15:40:31.157-05	2010-10-14 15:40:31.157-05	\N	\N	2	\N
-9	smoore	steve moore	smoore@wustl.edu	6dcc9a4a647120ac75dc0ae39ffe6888fcef8285	2f2dfbd295c07272f5580da43cb059d400d30188	2010-10-14 16:01:19.875-05	2010-10-14 16:01:19.875-05	\N	\N	2	\N
-5	sglanger	steve 	sglanger@nibib-2.wustl.edu	8a786f2a6223980d6622029ef81ac92321272658	ad10d719ccdb56b48672cedce3f911c689b76652	2010-09-16 18:58:29.457-05	2011-02-08 13:44:31.052-06	\N	\N	2	2011-02-08 13:44:31.044349-06
+COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date, active) FROM stdin;
+2	mwarnock	Max Warnock	mwarnock@umm.edu	a047ae44b02d035279c9ceea96bf423025ed992a	6c2e285bc6568a104281f833b0c3ad3aa67c319f	2010-09-14 13:44:57.442-05	2010-09-14 13:54:41.213-05	\N	\N	2	2011-08-24 11:18:34.519-05	t
+3	admin	admin	fake@fakey.com	ee4f514bc9e99c110745eb7cd8f4bebdf561d296	57e3276199a2f4d26de6ad4a9a894cd7b7e4d6f1	2010-09-16 18:18:54.645-05	2010-09-16 18:18:54.645-05	\N	\N	2	2011-08-24 11:18:34.519-05	t
+6	femi	Femi Oyesanya	oyesanyf@gmail.com	7847ad71ff43885836c5a4d0cf7df138572f3f12	7fda4f63215675ccc0c192e43214f1f1345248d4	2010-09-16 20:31:42.147-05	2010-09-16 20:31:42.147-05	\N	\N	1	2011-08-24 11:18:34.519-05	t
+4	wtellis	Wyatt Tellis	wyatt.tellis@ucsf.edu	e7e12ac655784d9910cb6354161a4cf4d21999d7	4539f3ad4ff395479c95755e5f0e90dcea37c98e	2010-09-16 18:24:11.356-05	2010-09-28 13:43:18.389-05	\N	\N	2	2011-08-24 11:18:34.519-05	t
+7	mdaly	Daly, Mark	mdaly@umm.edu	d1c7af1359d856baf55bbd717b3b232777caa85c	1b598317c926d775e9e00b537971b3283f06ea64	2010-10-13 09:38:49.245-05	2010-10-13 09:39:33.089-05	\N	\N	2	2011-08-24 11:18:34.519-05	t
+8	wzhu	Zhu, Wendy	wzhu@radiology.bsd.uchicago.edu	06f1a1a07f094e9d689efde53a0e809cdf82f67b	ddf446d9114c24dbf3d0beb7256c074a3fe3bd2d	2010-10-14 15:40:31.157-05	2010-10-14 15:40:31.157-05	\N	\N	2	2011-08-24 11:18:34.519-05	t
+9	smoore	steve moore	smoore@wustl.edu	6dcc9a4a647120ac75dc0ae39ffe6888fcef8285	2f2dfbd295c07272f5580da43cb059d400d30188	2010-10-14 16:01:19.875-05	2010-10-14 16:01:19.875-05	\N	\N	2	2011-08-24 11:18:34.519-05	t
+5	sglanger	steve 	sglanger@nibib-2.wustl.edu	8a786f2a6223980d6622029ef81ac92321272658	ad10d719ccdb56b48672cedce3f911c689b76652	2010-09-16 18:58:29.457-05	2011-02-08 13:44:31.052-06	\N	\N	2	2011-08-24 11:18:34.519-05	t
 \.
 
 
@@ -2449,6 +2517,14 @@ ALTER TABLE ONLY hipaa_audit_mrns
 
 ALTER TABLE ONLY hipaa_audit_views
     ADD CONSTRAINT pk_hipaa_audit_view_id PRIMARY KEY (id);
+
+
+--
+-- Name: pk_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY schema_version
+    ADD CONSTRAINT pk_id PRIMARY KEY (id);
 
 
 --
