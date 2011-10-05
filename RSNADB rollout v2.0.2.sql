@@ -1,4 +1,4 @@
-﻿-- activate or deactivate a user account
+-- activate or deactivate a user account
 ALTER TABLE users ADD COLUMN active Boolean DEFAULT true;
 UPDATE users SET active=true;
 
