@@ -1397,7 +1397,39 @@ ALTER TABLE ONLY transactions
 ALTER TABLE ONLY job_sets
     ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(user_id);
 
+--
+-- V2.1.0: Create db index to improve HL7 feed performance
+--	
+CREATE INDEX patients_dob_idx
+  ON patients
+  USING btree
+  (dob );
+ 
+CREATE INDEX patients_mrn_idx
+  ON patients
+  USING btree
+  (mrn );
+ 
+CREATE INDEX patients_patient_name_idx
+  ON patients
+  USING btree
+  (patient_name );
+ 
+CREATE INDEX exams_accession_number_idx
+  ON exams
+  USING btree
+  (accession_number );
 
+CREATE INDEX reports_status_timestamp_idx  
+  ON reports  
+  USING btree  
+  (status_timestamp );
+ 
+CREATE UNIQUE INDEX reports_unique_status_idx
+  ON reports
+  USING btree
+  (exam_id , status , status_timestamp );
+  
 --
 -- Name: public; Type: ACL; Schema: -; Owner: postgres
 --
