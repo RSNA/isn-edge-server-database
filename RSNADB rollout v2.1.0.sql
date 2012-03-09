@@ -35,3 +35,6 @@ CREATE UNIQUE INDEX reports_unique_status_idx
 -- V2.1.0: insert database schema version
 --
 insert into schema_version values(0, '2.1.0', now());
+INSERT INTO configurations VALUES('scp-port','4104',now());
+INSERT INTO configurations VALUES('scp-release-timeout','5000',now());
+INSERT INTO configurations VALUES('scp-request-timeout','5000',now());
