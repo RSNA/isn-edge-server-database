@@ -1,6 +1,24 @@
 --
--- PostgreSQL database dump
+-- PostgreSQL database dump 
 --
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = off;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET escape_string_warning = off;
+
+--
+-- Name: rsnadb; Type: DATABASE; Schema: -; Owner: edge
+--
+
+CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
+
+
+ALTER DATABASE rsnadb OWNER TO edge;
+
+\connect rsnadb
 
 SET statement_timeout = 0;
 SET client_encoding = 'UTF8';
@@ -44,7 +62,7 @@ Copyright (c) 2010, Radiological Society of North America
 -- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
 --
 
-CREATE OR REPLACE PROCEDURAL LANGUAGE plpgsql;
+CREATE PROCEDURAL LANGUAGE plpgsql;
 
 
 ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
@@ -1022,6 +1040,10 @@ iti41-endpoint-uri	https://clearinghouse.lifeimage.com/services/xdsrepositoryb	2
 iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
 scp-ae-title	RSNA-ISN	2011-01-10 18:35:16.668828-06
 scu-ae-title	RSNA-ISN	2011-01-10 18:43:13.369949-06
+consent-expired-days	90	2012-03-13 15:56:06.768-05
+scp-port	4104	2012-03-13 15:57:33.549-05
+scp-release-timeout	5000	2012-03-13 15:57:33.549-05
+scp-request-timeout	5000	2012-03-13 15:57:33.549-05
 \.
 
 
@@ -1118,6 +1140,7 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
+0	2.1.0	2012-03-13 15:57:33.549-05
 \.
 
 
@@ -1328,6 +1351,48 @@ ALTER TABLE ONLY users
 
 ALTER TABLE ONLY job_sets
     ADD CONSTRAINT uq_single_use_patient_id UNIQUE (single_use_patient_id);
+
+
+--
+-- Name: exams_accession_number_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE INDEX exams_accession_number_idx ON exams USING btree (accession_number);
+
+
+--
+-- Name: patients_dob_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE INDEX patients_dob_idx ON patients USING btree (dob);
+
+
+--
+-- Name: patients_mrn_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE INDEX patients_mrn_idx ON patients USING btree (mrn);
+
+
+--
+-- Name: patients_patient_name_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE INDEX patients_patient_name_idx ON patients USING btree (patient_name);
+
+
+--
+-- Name: reports_status_timestamp_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE INDEX reports_status_timestamp_idx ON reports USING btree (status_timestamp);
+
+
+--
+-- Name: reports_unique_status_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE UNIQUE INDEX reports_unique_status_idx ON reports USING btree (exam_id, status, status_timestamp);
 
 
 --
