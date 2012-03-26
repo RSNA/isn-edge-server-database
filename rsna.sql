@@ -1,24 +1,6 @@
 --
--- PostgreSQL database dump 
+-- PostgreSQL database dump
 --
-
-SET statement_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = off;
-SET check_function_bodies = false;
-SET client_min_messages = warning;
-SET escape_string_warning = off;
-
---
--- Name: rsnadb; Type: DATABASE; Schema: -; Owner: edge
---
-
-CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
-
-
-ALTER DATABASE rsnadb OWNER TO edge;
-
-\connect rsnadb
 
 SET statement_timeout = 0;
 SET client_encoding = 'UTF8';
@@ -62,7 +44,7 @@ Copyright (c) 2010, Radiological Society of North America
 -- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
 --
 
-CREATE PROCEDURAL LANGUAGE plpgsql;
+CREATE OR REPLACE PROCEDURAL LANGUAGE plpgsql;
 
 
 ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
@@ -74,7 +56,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE configurations (
@@ -100,7 +82,7 @@ e) etc';
 
 
 --
--- Name: devices; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: devices; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE devices (
@@ -155,7 +137,7 @@ SELECT pg_catalog.setval('devices_device_id_seq', 1, true);
 
 
 --
--- Name: exams; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: exams; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE exams (
@@ -205,7 +187,7 @@ SELECT pg_catalog.setval('exams_exam_id_seq', 101, true);
 
 
 --
--- Name: hipaa_audit_accession_numbers; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: hipaa_audit_accession_numbers; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE hipaa_audit_accession_numbers (
@@ -255,7 +237,7 @@ SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 388, true);
 
 
 --
--- Name: hipaa_audit_mrns; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: hipaa_audit_mrns; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE hipaa_audit_mrns (
@@ -305,7 +287,7 @@ SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2220, true);
 
 
 --
--- Name: hipaa_audit_views; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: hipaa_audit_views; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE hipaa_audit_views (
@@ -355,7 +337,7 @@ SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1662, true);
 
 
 --
--- Name: job_sets; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: job_sets; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE job_sets (
@@ -415,7 +397,7 @@ SELECT pg_catalog.setval('job_sets_job_set_id_seq', 112, true);
 
 
 --
--- Name: jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE jobs (
@@ -467,7 +449,7 @@ SELECT pg_catalog.setval('jobs_job_id_seq', 114, true);
 
 
 --
--- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE patient_merge_events (
@@ -520,7 +502,7 @@ SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
 
 
 --
--- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE patients (
@@ -590,7 +572,7 @@ SELECT pg_catalog.setval('patients_patient_id_seq', 90, true);
 
 
 --
--- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE reports (
@@ -645,7 +627,7 @@ SELECT pg_catalog.setval('reports_report_id_seq', 186, true);
 
 
 --
--- Name: roles; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: roles; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE roles (
@@ -666,7 +648,7 @@ COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user'
 
 
 --
--- Name: schema_version; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: schema_version; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE schema_version (
@@ -714,7 +696,7 @@ SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
 
 
 --
--- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE status_codes (
@@ -738,7 +720,7 @@ Values in the 30s are owned by the Content-send app';
 
 
 --
--- Name: studies; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: studies; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE studies (
@@ -789,7 +771,7 @@ SELECT pg_catalog.setval('studies_study_id_seq', 236, true);
 
 
 --
--- Name: transactions; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: transactions; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE transactions (
@@ -852,7 +834,7 @@ SELECT pg_catalog.setval('transactions_transaction_id_seq', 16078, true);
 
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: users; Type: TABLE; Schema: public; Owner: edge; Tablespace:
 --
 
 CREATE TABLE users (
@@ -1040,10 +1022,6 @@ iti41-endpoint-uri	https://clearinghouse.lifeimage.com/services/xdsrepositoryb	2
 iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
 scp-ae-title	RSNA-ISN	2011-01-10 18:35:16.668828-06
 scu-ae-title	RSNA-ISN	2011-01-10 18:43:13.369949-06
-consent-expired-days	90	2012-03-13 15:56:06.768-05
-scp-port	4104	2012-03-13 15:57:33.549-05
-scp-release-timeout	5000	2012-03-13 15:57:33.549-05
-scp-request-timeout	5000	2012-03-13 15:57:33.549-05
 \.
 
 
@@ -1140,7 +1118,6 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
-0	2.1.0	2012-03-13 15:57:33.549-05
 \.
 
 
@@ -1194,7 +1171,7 @@ COPY users (user_id, user_login, user_name, email, crypted_password, salt, creat
 
 
 --
--- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY devices
@@ -1202,7 +1179,7 @@ ALTER TABLE ONLY devices
 
 
 --
--- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY patient_merge_events
@@ -1210,7 +1187,7 @@ ALTER TABLE ONLY patient_merge_events
 
 
 --
--- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY exams
@@ -1218,7 +1195,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY hipaa_audit_accession_numbers
@@ -1226,7 +1203,7 @@ ALTER TABLE ONLY hipaa_audit_accession_numbers
 
 
 --
--- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY hipaa_audit_mrns
@@ -1234,7 +1211,7 @@ ALTER TABLE ONLY hipaa_audit_mrns
 
 
 --
--- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY hipaa_audit_views
@@ -1242,7 +1219,7 @@ ALTER TABLE ONLY hipaa_audit_views
 
 
 --
--- Name: pk_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY schema_version
@@ -1250,7 +1227,7 @@ ALTER TABLE ONLY schema_version
 
 
 --
--- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY jobs
@@ -1258,7 +1235,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY job_sets
@@ -1266,7 +1243,7 @@ ALTER TABLE ONLY job_sets
 
 
 --
--- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY configurations
@@ -1274,7 +1251,7 @@ ALTER TABLE ONLY configurations
 
 
 --
--- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY patients
@@ -1282,7 +1259,7 @@ ALTER TABLE ONLY patients
 
 
 --
--- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY reports
@@ -1290,7 +1267,7 @@ ALTER TABLE ONLY reports
 
 
 --
--- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY roles
@@ -1298,7 +1275,7 @@ ALTER TABLE ONLY roles
 
 
 --
--- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY status_codes
@@ -1306,7 +1283,7 @@ ALTER TABLE ONLY status_codes
 
 
 --
--- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY studies
@@ -1314,7 +1291,7 @@ ALTER TABLE ONLY studies
 
 
 --
--- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY transactions
@@ -1322,7 +1299,7 @@ ALTER TABLE ONLY transactions
 
 
 --
--- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY users
@@ -1330,7 +1307,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY exams
@@ -1338,7 +1315,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY users
@@ -1346,53 +1323,11 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_single_use_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: uq_single_use_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace:
 --
 
 ALTER TABLE ONLY job_sets
     ADD CONSTRAINT uq_single_use_patient_id UNIQUE (single_use_patient_id);
-
-
---
--- Name: exams_accession_number_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE INDEX exams_accession_number_idx ON exams USING btree (accession_number);
-
-
---
--- Name: patients_dob_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE INDEX patients_dob_idx ON patients USING btree (dob);
-
-
---
--- Name: patients_mrn_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE INDEX patients_mrn_idx ON patients USING btree (mrn);
-
-
---
--- Name: patients_patient_name_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE INDEX patients_patient_name_idx ON patients USING btree (patient_name);
-
-
---
--- Name: reports_status_timestamp_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE INDEX reports_status_timestamp_idx ON reports USING btree (status_timestamp);
-
-
---
--- Name: reports_unique_status_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
---
-
-CREATE UNIQUE INDEX reports_unique_status_idx ON reports USING btree (exam_id, status, status_timestamp);
 
 
 --
