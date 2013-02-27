@@ -362,10 +362,10 @@ CREATE TABLE job_sets (
     job_set_id integer NOT NULL,
     patient_id integer NOT NULL,
     user_id integer NOT NULL,
-    email_address character varying(255),
     modified_date timestamp with time zone DEFAULT now(),
     delay_in_hrs integer DEFAULT 72,
-    single_use_patient_id character varying(64) NOT NULL
+    single_use_patient_id character varying(64) NOT NULL,
+	send_on_complete Boolean DEFAULT false NOT NULL
 );
 
 
@@ -424,6 +424,7 @@ CREATE TABLE jobs (
     exam_id integer NOT NULL,
     report_id integer,
     document_id character varying(100),
+	remaining_retries integer NOT NULL,
     modified_date timestamp with time zone DEFAULT now()
 );
 
@@ -533,6 +534,8 @@ CREATE TABLE patients (
     city character varying(50),
     state character varying(30),
     zip_code character varying(30),
+	email_address character varying(255),
+	encrypted_password text,
     modified_date timestamp with time zone DEFAULT now(),
     consent_timestamp timestamp with time zone
 );
@@ -924,7 +927,7 @@ ALTER TABLE public.v_exam_status OWNER TO edge;
 --
 
 CREATE VIEW v_job_status AS
-    SELECT j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp, js.single_use_patient_id, t.comments FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+    SELECT js.job_set_id, j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp, js.single_use_patient_id, t.comments, js.send_on_complete, j.remaining_retries FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
 
 
 ALTER TABLE public.v_job_status OWNER TO edge;
@@ -1044,6 +1047,8 @@ consent-expired-days	90	2012-03-13 15:56:06.768-05
 scp-port	4104	2012-03-13 15:57:33.549-05
 scp-release-timeout	5000	2012-03-13 15:57:33.549-05
 scp-request-timeout	5000	2012-03-13 15:57:33.549-05
+max_retries	10	2013-02-26 15:57:33.549-05
+retry_delay_in_mins	10	2013-02-26 15:57:33.549-05
 \.
 
 
@@ -1140,7 +1145,7 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
-0	2.1.0	2012-03-13 15:57:33.549-05
+0	3.1.0	2012-03-13 15:57:33.549-05
 \.
 
 
@@ -1154,6 +1159,7 @@ COPY status_codes (status_code, description, modified_date) FROM stdin;
 23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05
 30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05
 22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
+24	Waiting for exam completion	2013-02-26 15:57:33.549-05
 32	Started KOS generation	2010-10-22 09:58:07.496506-05
 33	Stared patient registration	2010-10-22 09:58:07.496506-05
 34	Started document submission	2010-10-22 09:58:07.496506-05
