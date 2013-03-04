@@ -9,8 +9,10 @@ ALTER TABLE job_sets DROP COLUMN email_address;
 
 UPDATE job_sets SET send_on_complete=false;
 UPDATE schema_version SET version='3.1.0', modified_date=now();
-INSERT INTO configurations VALUES('max_retries','10',now());
-INSERT INTO configurations VALUES('retry_delay_in_mins','10',now());
+INSERT INTO configurations VALUES('max-retries','10',now());
+INSERT INTO configurations VALUES('retry-delay-in-mins','10',now());
+INSERT INTO configurations VALUES('fail-on-incomplete-study', false, now());
+INSERT INTO configurations VALUES('retrieve-timeout-in-secs', '600', now());
 INSERT INTO status_codes VALUES(24, 'Waiting for exam completion',now());
 
 CREATE OR REPLACE VIEW v_job_status AS 

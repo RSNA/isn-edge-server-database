@@ -31,7 +31,7 @@ SET escape_string_warning = off;
 -- Name: rsnadb; Type: COMMENT; Schema: -; Owner: edge
 --
 
-COMMENT ON DATABASE rsnadb IS 'RSNA2 Edge Device Database
+COMMENT ON DATABASE rsnadb IS 'RSNA Edge Device Database
 Authors: Wendy Zhu (Univ of Chicago) and Steve G Langer (Mayo Clinic)
 
 Copyright (c) 2010, Radiological Society of North America
@@ -377,14 +377,6 @@ ALTER TABLE public.job_sets OWNER TO edge;
 
 COMMENT ON TABLE job_sets IS 'This is one of a pair of tables that bind a patient to a edge device job, consisting of one or more exam accessions descrbing DICOM exams to send to the CH. The other table is JOBS
 ';
-
-
---
--- Name: COLUMN job_sets.email_address; Type: COMMENT; Schema: public; Owner: edge
---
-
-COMMENT ON COLUMN job_sets.email_address IS 'the email address the patient claimed at the time this job was submitted to the Clearing House';
-
 
 --
 -- Name: job_sets_job_set_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
@@ -1047,8 +1039,10 @@ consent-expired-days	90	2012-03-13 15:56:06.768-05
 scp-port	4104	2012-03-13 15:57:33.549-05
 scp-release-timeout	5000	2012-03-13 15:57:33.549-05
 scp-request-timeout	5000	2012-03-13 15:57:33.549-05
-max_retries	10	2013-02-26 15:57:33.549-05
-retry_delay_in_mins	10	2013-02-26 15:57:33.549-05
+max-retries	10	2013-02-26 15:57:33.549-05
+retry-delay-in-mins	10	2013-02-26 15:57:33.549-05
+fail-on-incomplete-study	false	2013-03-04 15:57:33.549-05
+retrieve-timeout-in-secs	600	2013-03-04 15:57:33.549-05
 \.
 
 
@@ -1096,7 +1090,7 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 -- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id) FROM stdin;
+COPY job_sets (job_set_id, patient_id, user_id, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete) FROM stdin;
 \.
 
 
@@ -1104,7 +1098,7 @@ COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, de
 -- Data for Name: jobs; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY jobs (job_id, job_set_id, exam_id, report_id, document_id, modified_date) FROM stdin;
+COPY jobs (job_id, job_set_id, exam_id, report_id, document_id, modified_date, remaining_retries) FROM stdin;
 \.
 
 
@@ -1120,7 +1114,7 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 -- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date, consent_timestamp) FROM stdin;
+COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date, consent_timestamp, email_address, encrypted_password) FROM stdin;
 \.
 
 
