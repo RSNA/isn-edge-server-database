@@ -528,6 +528,7 @@ CREATE TABLE patients (
     zip_code character varying(30),
 	email_address character varying(255),
 	encrypted_password text,
+	rsna_id character varying(64),
     modified_date timestamp with time zone DEFAULT now(),
     consent_timestamp timestamp with time zone
 );
@@ -546,7 +547,7 @@ COMMENT ON TABLE patients IS 'a list of all patient demog sent via the HL7 MIRTH
 -- Name: COLUMN patients.patient_id; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON COLUMN patients.patient_id IS 'just teh dbase created primary key';
+COMMENT ON COLUMN patients.patient_id IS 'just the dbase created primary key';
 
 
 --
@@ -1114,7 +1115,7 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 -- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date, consent_timestamp, email_address, encrypted_password) FROM stdin;
+COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date, consent_timestamp, email_address, encrypted_password, rsna_id) FROM stdin;
 \.
 
 

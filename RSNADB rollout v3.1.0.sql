@@ -5,6 +5,7 @@ UPDATE jobs SET remaining_retries = 0;
 ALTER TABLE jobs ALTER COLUMN remaining_retries SET NOT NULL;
 ALTER TABLE patients ADD COLUMN email_address character varying(255);
 ALTER TABLE patients ADD COLUMN encrypted_password text;
+ALTER TABLE patients ADD COLUMN rsna_id character varying(64);
 ALTER TABLE job_sets DROP COLUMN email_address;
 
 UPDATE job_sets SET send_on_complete=false;
