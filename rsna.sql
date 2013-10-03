@@ -1156,7 +1156,7 @@ COPY status_codes (status_code, description, modified_date) FROM stdin;
 22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
 24	Waiting for exam completion	2013-02-26 15:57:33.549-05
 32	Started KOS generation	2010-10-22 09:58:07.496506-05
-33	Stared patient registration	2010-10-22 09:58:07.496506-05
+33	Started patient registration	2010-10-22 09:58:07.496506-05
 34	Started document submission	2010-10-22 09:58:07.496506-05
 40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05
 1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05
@@ -1347,14 +1347,6 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_single_use_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
---
-
-ALTER TABLE ONLY job_sets
-    ADD CONSTRAINT uq_single_use_patient_id UNIQUE (single_use_patient_id);
-
-
---
 -- Name: exams_accession_number_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
 --
 
@@ -1489,4 +1481,3 @@ GRANT ALL ON SCHEMA public TO PUBLIC;
 --
 -- PostgreSQL database dump complete
 --
-

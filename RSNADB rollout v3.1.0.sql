@@ -4,6 +4,7 @@ UPDATE jobs SET remaining_retries = 0;
 ALTER TABLE jobs ALTER COLUMN remaining_retries SET NOT NULL;
 ALTER TABLE patients ADD COLUMN email_address character varying(255);
 ALTER TABLE patients ADD COLUMN rsna_id character varying(64);
+ALTER TABLE job_sets DROP CONSTRAINT uq_single_use_patient_id;
 
 UPDATE job_sets SET send_on_complete=false;
 UPDATE schema_version SET version='3.1.0', modified_date=now();
@@ -12,6 +13,7 @@ INSERT INTO configurations VALUES('retry-delay-in-mins','10',now());
 INSERT INTO configurations VALUES('fail-on-incomplete-study', false, now());
 INSERT INTO configurations VALUES('retrieve-timeout-in-secs', '600', now());
 INSERT INTO status_codes VALUES(24, 'Waiting for exam completion',now());
+UPDATE status_codes SET description='Started patient registration' where status_code=33;
 
 DROP VIEW v_job_status;
 CREATE OR REPLACE VIEW v_job_status AS 
