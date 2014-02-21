@@ -1,8 +1,9 @@
 UPDATE schema_version SET version='3.2.0', modified_date=now();
--- If true, then token app will do search in the first portion of the name field delimited by ^. 
-INSERT INTO configurations VALUES('search-patient-lastname','false',now());
 -- Add send_alert column to table
 ALTER TABLE status_codes ADD COLUMN send_alert Boolean DEFAULT false NOT NULL;
+-- If true, then token app will do search in the first portion of the name field delimited by ^. 
+INSERT INTO configurations VALUES('search-patient-lastname','false',now());
+INSERT INTO configurations VALUES('secondary-capture-report-enabled','true',now());
 
 -- Table: email_configurations
 CREATE TABLE email_configurations
@@ -37,6 +38,17 @@ WITH (
 );
 ALTER TABLE email_jobs OWNER TO edge;
 COMMENT ON TABLE email_jobs IS 'This table is used to store queued emails. Jobs within the queue will be handled by a worker thread which is responsible for handling any send failures and retrying failed jobs';
+
+INSERT INTO email_configurations VALUES('enable_error_email','false',now());
+INSERT INTO email_configurations VALUES('enable_patient_email','false',now());
+INSERT INTO email_configurations VALUES('error_email_body','',now());
+INSERT INTO email_configurations VALUES('error_email_recipients','',now());
+INSERT INTO email_configurations VALUES('patient_email_body','',now());
+INSERT INTO email_configurations VALUES('patient_email_subject','',now());
+INSERT INTO email_configurations VALUES('username','',now());
+INSERT INTO email_configurations VALUES('password','',now());
+INSERT INTO email_configurations VALUES('bounce_email','',now());
+INSERT INTO email_configurations VALUES('reply_to_email','',now());
 
 -- Add email address to view
 DROP VIEW v_exam_status;

@@ -1,5 +1,5 @@
 --
--- PostgreSQL database dump 
+-- PostgreSQL database dump
 --
 
 SET statement_timeout = 0;
@@ -152,6 +152,80 @@ ALTER SEQUENCE devices_device_id_seq OWNED BY devices.device_id;
 --
 
 SELECT pg_catalog.setval('devices_device_id_seq', 1, true);
+
+
+--
+-- Name: email_configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE email_configurations (
+    key character varying NOT NULL,
+    value character varying NOT NULL,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.email_configurations OWNER TO edge;
+
+--
+-- Name: TABLE email_configurations; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE email_configurations IS 'This table is used to store email configuration as key/value pairs';
+
+
+--
+-- Name: email_jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+--
+
+CREATE TABLE email_jobs (
+    email_job_id integer NOT NULL,
+    recipient character varying NOT NULL,
+    subject character varying,
+    body text,
+    sent boolean DEFAULT false NOT NULL,
+    failed boolean DEFAULT false NOT NULL,
+    comments character varying,
+    created_date timestamp with time zone NOT NULL,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.email_jobs OWNER TO edge;
+
+--
+-- Name: TABLE email_jobs; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE email_jobs IS 'This table is used to store queued emails. Jobs within the queue will be handled by a worker thread which is responsible for handling any send failures and retrying failed jobs';
+
+
+--
+-- Name: email_jobs_email_job_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE email_jobs_email_job_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.email_jobs_email_job_id_seq OWNER TO edge;
+
+--
+-- Name: email_jobs_email_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE email_jobs_email_job_id_seq OWNED BY email_jobs.email_job_id;
+
+
+--
+-- Name: email_jobs_email_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('email_jobs_email_job_id_seq', 1, false);
 
 
 --
@@ -362,11 +436,11 @@ CREATE TABLE job_sets (
     job_set_id integer NOT NULL,
     patient_id integer NOT NULL,
     user_id integer NOT NULL,
-	email_address character varying(255),
+    email_address character varying(255),
     modified_date timestamp with time zone DEFAULT now(),
     delay_in_hrs integer DEFAULT 72,
     single_use_patient_id character varying(64) NOT NULL,
-	send_on_complete Boolean DEFAULT false NOT NULL
+    send_on_complete boolean DEFAULT false NOT NULL
 );
 
 
@@ -378,6 +452,7 @@ ALTER TABLE public.job_sets OWNER TO edge;
 
 COMMENT ON TABLE job_sets IS 'This is one of a pair of tables that bind a patient to a edge device job, consisting of one or more exam accessions descrbing DICOM exams to send to the CH. The other table is JOBS
 ';
+
 
 --
 -- Name: job_sets_job_set_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
@@ -417,7 +492,7 @@ CREATE TABLE jobs (
     exam_id integer NOT NULL,
     report_id integer,
     document_id character varying(100),
-	remaining_retries integer NOT NULL,
+    remaining_retries integer NOT NULL,
     modified_date timestamp with time zone DEFAULT now()
 );
 
@@ -527,8 +602,8 @@ CREATE TABLE patients (
     city character varying(50),
     state character varying(30),
     zip_code character varying(30),
-	email_address character varying(255),
-	rsna_id character varying(64),
+    email_address character varying(255),
+    rsna_id character varying(64),
     modified_date timestamp with time zone DEFAULT now(),
     consent_timestamp timestamp with time zone
 );
@@ -716,7 +791,8 @@ SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
 CREATE TABLE status_codes (
     status_code integer NOT NULL,
     description character varying(255),
-    modified_date timestamp with time zone DEFAULT now()
+    modified_date timestamp with time zone DEFAULT now(),
+    send_alert boolean DEFAULT false NOT NULL
 );
 
 
@@ -910,7 +986,7 @@ SELECT pg_catalog.setval('users_user_id_seq', 9, true);
 --
 
 CREATE VIEW v_exam_status AS
-    SELECT p.patient_id, p.mrn, p.patient_name, p.dob, p.sex, p.street, p.city, p.state, p.zip_code, e.exam_id, e.accession_number, e.exam_description, r.report_id, r.status, r.status_timestamp, r.report_text, r.dictator, r.transcriber, r.signer FROM ((patients p JOIN exams e ON ((p.patient_id = e.patient_id))) JOIN (SELECT r1.report_id, r1.exam_id, r1.proc_code, r1.status, r1.status_timestamp, r1.report_text, r1.signer, r1.dictator, r1.transcriber, r1.modified_date FROM reports r1 WHERE (r1.report_id = (SELECT r2.report_id FROM reports r2 WHERE (r2.exam_id = r1.exam_id) ORDER BY r2.status_timestamp DESC, r2.modified_date DESC LIMIT 1))) r ON ((e.exam_id = r.exam_id)));
+    SELECT p.patient_id, p.mrn, p.patient_name, p.dob, p.sex, p.street, p.city, p.state, p.zip_code, p.email_address, e.exam_id, e.accession_number, e.exam_description, r.report_id, r.status, r.status_timestamp, r.report_text, r.dictator, r.transcriber, r.signer FROM ((patients p JOIN exams e ON ((p.patient_id = e.patient_id))) JOIN (SELECT r1.report_id, r1.exam_id, r1.proc_code, r1.status, r1.status_timestamp, r1.report_text, r1.signer, r1.dictator, r1.transcriber, r1.modified_date FROM reports r1 WHERE (r1.report_id = (SELECT r2.report_id FROM reports r2 WHERE (r2.exam_id = r1.exam_id) ORDER BY r2.status_timestamp DESC, r2.modified_date DESC LIMIT 1))) r ON ((e.exam_id = r.exam_id)));
 
 
 ALTER TABLE public.v_exam_status OWNER TO edge;
@@ -920,7 +996,7 @@ ALTER TABLE public.v_exam_status OWNER TO edge;
 --
 
 CREATE VIEW v_job_status AS
-    SELECT js.job_set_id, j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp, js.single_use_patient_id, t.comments, js.send_on_complete, j.remaining_retries FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+    SELECT js.job_set_id, j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp, js.single_use_patient_id, js.email_address, t.comments, js.send_on_complete, j.remaining_retries FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
 
 
 ALTER TABLE public.v_job_status OWNER TO edge;
@@ -930,6 +1006,13 @@ ALTER TABLE public.v_job_status OWNER TO edge;
 --
 
 ALTER TABLE devices ALTER COLUMN device_id SET DEFAULT nextval('devices_device_id_seq'::regclass);
+
+
+--
+-- Name: email_job_id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE email_jobs ALTER COLUMN email_job_id SET DEFAULT nextval('email_jobs_email_job_id_seq'::regclass);
 
 
 --
@@ -1040,10 +1123,12 @@ consent-expired-days	90	2012-03-13 15:56:06.768-05
 scp-port	4104	2012-03-13 15:57:33.549-05
 scp-release-timeout	5000	2012-03-13 15:57:33.549-05
 scp-request-timeout	5000	2012-03-13 15:57:33.549-05
-max-retries	10	2013-02-26 15:57:33.549-05
-retry-delay-in-mins	10	2013-02-26 15:57:33.549-05
-fail-on-incomplete-study	false	2013-03-04 15:57:33.549-05
-retrieve-timeout-in-secs	600	2013-03-04 15:57:33.549-05
+max-retries	10	2013-02-26 14:57:33.549-06
+retry-delay-in-mins	10	2013-02-26 14:57:33.549-06
+fail-on-incomplete-study	false	2013-03-04 14:57:33.549-06
+retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
+search-patient-lastname	false	2014-02-21 12:05:05.933-06
+secondary-capture-report-enabled	true	2014-02-21 12:05:05.933-06
 \.
 
 
@@ -1052,6 +1137,32 @@ retrieve-timeout-in-secs	600	2013-03-04 15:57:33.549-05
 --
 
 COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
+\.
+
+
+--
+-- Data for Name: email_configurations; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY email_configurations (key, value, modified_date) FROM stdin;
+enable_error_email	false	2014-02-21 12:05:05.933-06
+enable_patient_email	false	2014-02-21 12:05:05.933-06
+error_email_body		2014-02-21 12:05:05.933-06
+error_email_recipients		2014-02-21 12:05:05.933-06
+patient_email_body		2014-02-21 12:05:05.933-06
+patient_email_subject		2014-02-21 12:05:05.933-06
+username		2014-02-21 12:05:05.933-06
+password		2014-02-21 12:05:05.933-06
+bounce_email		2014-02-21 12:05:05.933-06
+reply_to_email		2014-02-21 12:05:05.933-06
+\.
+
+
+--
+-- Data for Name: email_jobs; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY email_jobs (email_job_id, recipient, subject, body, sent, failed, comments, created_date, modified_date) FROM stdin;
 \.
 
 
@@ -1099,7 +1210,7 @@ COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, de
 -- Data for Name: jobs; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY jobs (job_id, job_set_id, exam_id, report_id, document_id, modified_date, remaining_retries) FROM stdin;
+COPY jobs (job_id, job_set_id, exam_id, report_id, document_id, remaining_retries, modified_date) FROM stdin;
 \.
 
 
@@ -1115,7 +1226,7 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 -- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, modified_date, consent_timestamp, email_address, rsna_id) FROM stdin;
+COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, email_address, rsna_id, modified_date, consent_timestamp) FROM stdin;
 \.
 
 
@@ -1140,7 +1251,7 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
-0	3.1.0	2012-03-13 15:57:33.549-05
+0	3.2.0	2014-02-21 12:05:05.933-06
 \.
 
 
@@ -1148,25 +1259,25 @@ COPY schema_version (id, version, modified_date) FROM stdin;
 -- Data for Name: status_codes; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY status_codes (status_code, description, modified_date) FROM stdin;
-31	Started processing input data	2010-10-22 09:58:07.496506-05
-21	Waiting for report finalization	2010-10-22 11:59:15.243445-05
-23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05
-30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05
-22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
-24	Waiting for exam completion	2013-02-26 15:57:33.549-05
-32	Started KOS generation	2010-10-22 09:58:07.496506-05
-33	Started patient registration	2010-10-22 09:58:07.496506-05
-34	Started document submission	2010-10-22 09:58:07.496506-05
-40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05
-1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05
--23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05
--21	Unable to find images	2010-10-22 11:59:15.243445-05
--32	Failed to generate KOS	2010-11-02 09:39:45.53873-05
--30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05
--20	Failed to prepare content	2010-10-22 09:58:07.496506-05
--33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05
--34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05
+COPY status_codes (status_code, description, modified_date, send_alert) FROM stdin;
+31	Started processing input data	2010-10-22 09:58:07.496506-05	f
+21	Waiting for report finalization	2010-10-22 11:59:15.243445-05	f
+23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05	f
+30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05	f
+22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05	f
+24	Waiting for exam completion	2013-02-26 14:57:33.549-06	f
+32	Started KOS generation	2010-10-22 09:58:07.496506-05	f
+33	Started patient registration	2010-10-22 09:58:07.496506-05	f
+34	Started document submission	2010-10-22 09:58:07.496506-05	f
+40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05	f
+1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05	f
+-23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05	f
+-21	Unable to find images	2010-10-22 11:59:15.243445-05	f
+-32	Failed to generate KOS	2010-11-02 09:39:45.53873-05	f
+-30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05	f
+-20	Failed to prepare content	2010-10-22 09:58:07.496506-05	f
+-33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05	f
+-34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05	f
 \.
 
 
@@ -1200,6 +1311,22 @@ COPY users (user_id, user_login, user_name, email, crypted_password, salt, creat
 
 ALTER TABLE ONLY devices
     ADD CONSTRAINT pk_device_id PRIMARY KEY (device_id);
+
+
+--
+-- Name: pk_email_configuration_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY email_configurations
+    ADD CONSTRAINT pk_email_configuration_key PRIMARY KEY (key);
+
+
+--
+-- Name: pk_email_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+--
+
+ALTER TABLE ONLY email_jobs
+    ADD CONSTRAINT pk_email_job_id PRIMARY KEY (email_job_id);
 
 
 --
@@ -1361,10 +1488,10 @@ CREATE INDEX patients_dob_idx ON patients USING btree (dob);
 
 
 --
--- Name: patients_mrn_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: patients_mrn_ix; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
 --
 
-CREATE INDEX patients_mrn_idx ON patients USING btree (mrn);
+CREATE UNIQUE INDEX patients_mrn_ix ON patients USING btree (mrn);
 
 
 --
@@ -1481,3 +1608,4 @@ GRANT ALL ON SCHEMA public TO PUBLIC;
 --
 -- PostgreSQL database dump complete
 --
+
