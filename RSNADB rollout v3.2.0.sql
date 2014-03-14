@@ -88,3 +88,11 @@ CREATE UNIQUE INDEX patients_mrn_ix
   ON patients
   USING btree
   (mrn);
+
+CREATE INDEX jobs_job_set_id ON jobs USING btree (job_set_id);
+
+CREATE INDEX transactions_status_code_idx ON transactions USING btree (status_code);
+
+CREATE INDEX transactions_job_id ON transactions USING btree (job_id);
+
+CREATE INDEX transactions_modified_date ON transactions USING btree (modified_date);

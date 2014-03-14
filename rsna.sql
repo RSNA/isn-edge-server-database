@@ -1507,6 +1507,13 @@ CREATE INDEX patients_patient_name_idx ON patients USING btree (patient_name);
 
 CREATE INDEX reports_status_timestamp_idx ON reports USING btree (status_timestamp);
 
+CREATE INDEX jobs_job_set_id ON jobs USING btree (job_set_id);
+
+CREATE INDEX transactions_status_code_idx ON transactions USING btree (status_code);
+
+CREATE INDEX transactions_job_id ON transactions USING btree (job_id);
+
+CREATE INDEX transactions_modified_date ON transactions USING btree (modified_date);
 
 --
 -- Name: reports_unique_status_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
