@@ -4,6 +4,7 @@ ALTER TABLE status_codes ADD COLUMN send_alert Boolean DEFAULT false NOT NULL;
 -- If true, then token app will do search in the first portion of the name field delimited by ^. 
 INSERT INTO configurations VALUES('search-patient-lastname','false',now());
 INSERT INTO configurations VALUES('secondary-capture-report-enabled','true',now());
+INSERT INTO configurations VALUES('scp-idle-timeout','60000',now());
 
 -- Table: email_configurations
 CREATE TABLE email_configurations

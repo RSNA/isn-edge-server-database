@@ -1129,6 +1129,7 @@ fail-on-incomplete-study	false	2013-03-04 14:57:33.549-06
 retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
 search-patient-lastname	false	2014-02-21 12:05:05.933-06
 secondary-capture-report-enabled	true	2014-02-21 12:05:05.933-06
+scp-idle-timeout	60000	2014-06-18 12:05:05.933-06
 \.
 
 
