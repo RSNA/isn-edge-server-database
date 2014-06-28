@@ -1,6 +1,8 @@
 UPDATE schema_version SET version='3.2.0', modified_date=now();
--- Add send_alert column to table
+
 ALTER TABLE status_codes ADD COLUMN send_alert Boolean DEFAULT false NOT NULL;
+ALTER TABLE job_sets ADD COLUMN access_code character varying(64);
+
 -- If true, then token app will do search in the first portion of the name field delimited by ^. 
 INSERT INTO configurations VALUES('search-patient-lastname','false',now());
 INSERT INTO configurations VALUES('secondary-capture-report-enabled','true',now());

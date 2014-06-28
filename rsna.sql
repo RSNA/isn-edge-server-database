@@ -440,7 +440,8 @@ CREATE TABLE job_sets (
     modified_date timestamp with time zone DEFAULT now(),
     delay_in_hrs integer DEFAULT 72,
     single_use_patient_id character varying(64) NOT NULL,
-    send_on_complete boolean DEFAULT false NOT NULL
+    send_on_complete boolean DEFAULT false NOT NULL,
+	access_code character varying(64)
 );
 
 
@@ -1203,7 +1204,7 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 -- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete) FROM stdin;
+COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete, access_code) FROM stdin;
 \.
 
 
