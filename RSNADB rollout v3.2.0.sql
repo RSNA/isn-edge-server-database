@@ -2,6 +2,7 @@ UPDATE schema_version SET version='3.2.0', modified_date=now();
 
 ALTER TABLE status_codes ADD COLUMN send_alert Boolean DEFAULT false NOT NULL;
 ALTER TABLE job_sets ADD COLUMN access_code character varying(64);
+ALTER TABLE job_sets ADD COLUMN send_to_site Boolean DEFAULT false NOT NULL;
 
 -- If true, then token app will do search in the first portion of the name field delimited by ^. 
 INSERT INTO configurations VALUES('search-patient-lastname','false',now());
@@ -73,7 +74,7 @@ DROP VIEW v_job_status;
 CREATE OR REPLACE VIEW v_job_status AS 
  SELECT js.job_set_id, j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, 
  t.modified_date AS last_transaction_timestamp, 
-		js.single_use_patient_id, js.email_address, t.comments, js.send_on_complete, j.remaining_retries
+		js.single_use_patient_id, js.email_address, t.comments, js.send_on_complete, j.remaining_retries, js.send_to_site
    FROM jobs j
    JOIN job_sets js ON j.job_set_id = js.job_set_id
    JOIN ( SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date
