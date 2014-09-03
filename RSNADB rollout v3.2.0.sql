@@ -8,6 +8,7 @@ ALTER TABLE job_sets ADD COLUMN send_to_site Boolean DEFAULT false NOT NULL;
 INSERT INTO configurations VALUES('search-patient-lastname','false',now());
 INSERT INTO configurations VALUES('secondary-capture-report-enabled','true',now());
 INSERT INTO configurations VALUES('scp-idle-timeout','60000',now());
+INSERT INTO status_codes (status_code, description, send_alert) VALUES (-24,'Exam has been canceled',FALSE);
 
 -- Table: email_configurations
 CREATE TABLE email_configurations

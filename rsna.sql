@@ -1281,6 +1281,7 @@ COPY status_codes (status_code, description, modified_date, send_alert) FROM std
 -20	Failed to prepare content	2010-10-22 09:58:07.496506-05	f
 -33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05	f
 -34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05	f
+-24	Exam has been canceled	2014-09-03 15:41:37.99-05	f
 \.
 
 
