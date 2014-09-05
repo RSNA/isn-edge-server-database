@@ -1,18 +1,4 @@
-﻿delete from reports;
-delete from studies;
-delete from transactions;
-delete from jobs;
-delete from job_sets;
-delete from exams;
-delete from patient_merge_events;
-delete from patient_rsna_ids;
-delete from patients;
-
-delete from hipaa_audit_accession_numbers;
-delete from hipaa_audit_mrns;
-delete from hipaa_audit_views;
-
-ALTER TABLE job_sets ADD COLUMN single_use_patient_id character varying(64) NOT NULL;
+﻿ALTER TABLE job_sets ADD COLUMN single_use_patient_id character varying(64) NOT NULL;
 ALTER TABLE job_sets ADD CONSTRAINT uq_single_use_patient_id UNIQUE (single_use_patient_id);
 ALTER TABLE job_sets DROP COLUMN security_pin;
 
