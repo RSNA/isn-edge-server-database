@@ -13,7 +13,7 @@ SET escape_string_warning = off;
 -- Name: rsnadb; Type: DATABASE; Schema: -; Owner: edge
 --
 
-CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
+CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' ;
 
 
 ALTER DATABASE rsnadb OWNER TO edge;
