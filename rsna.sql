@@ -1,4 +1,4 @@
---
+﻿--
 -- PostgreSQL database dump
 --
 
@@ -1132,6 +1132,8 @@ retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
 search-patient-lastname	false	2014-02-21 12:05:05.933-06
 secondary-capture-report-enabled	true	2014-02-21 12:05:05.933-06
 scp-idle-timeout	60000	2014-06-18 12:05:05.933-06
+attach-dicom-report	true	2014-10-16 14:57:33.549-06
+submit-stats	false	2014-10-16 14:58:33.549-06
 \.
 
 
@@ -1150,15 +1152,15 @@ COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
 COPY email_configurations (key, value, modified_date) FROM stdin;
 enable_error_email	false	2014-02-21 12:05:05.933-06
 enable_patient_email	false	2014-02-21 12:05:05.933-06
-error_email_body		2014-02-21 12:05:05.933-06
 error_email_recipients		2014-02-21 12:05:05.933-06
-patient_email_body		2014-02-21 12:05:05.933-06
-patient_email_subject		2014-02-21 12:05:05.933-06
 username		2014-02-21 12:05:05.933-06
 password		2014-02-21 12:05:05.933-06
 bounce_email		2014-02-21 12:05:05.933-06
 reply_to_email		2014-02-21 12:05:05.933-06
 \.
+insert into email_configurations values('patient_email_subject','Your imaging records are ready for viewing');
+insert into email_configurations values('patient_email_body','Dear $patientname$,<br><br>Your imaging records from $siteid$ are ready for you to pick up online.<br><br> You will need to move them into your Personal Health Record (PHR) account to access your results. If you have not already done so, you can create a PHR account for this purpose using any of the services linked below.<br><br>DICOM Grid: <a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a><br>itMD: <a href="http://share.itMD.net/claim">http://share.itMD.net/claim</a><br>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a><br><br>These PHR systems provide more detailed instructions about how to set up an account and access your images.  If you wish you can choose to try more than one- they’re free.<br><br>General instructions and further information about the Image Share network are available at <a href="http://www.rsna.org/Image_Share.aspx">http://www.rsna.org/Image_Share.aspx</a>. Help and technical support are available during business hours at  <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).<br><br>We hope you find this service helpful and convenient.<br><br>RSNA Image Share was developed by RSNA and its partners with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>Thank you for using RSNA Image Share!');
+insert into email_configurations values('error_email_body','The following job failed to send to the clearinghouse:\r\n\r\nName: $patientname$\r\nAccession: $accession$\r\nJob ID: $jobid$\r\nStatus: $jobstatus$ ($jobstatuscode$)\r\nError Detail:\r\n\r\n$errormsg$');
 
 
 --
