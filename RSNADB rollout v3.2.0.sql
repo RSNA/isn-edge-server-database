@@ -1,4 +1,4 @@
-﻿UPDATE schema_version SET version='3.2.0', modified_date=now();
+UPDATE schema_version SET version='3.2.0', modified_date=now();
 
 ALTER TABLE status_codes ADD COLUMN send_alert Boolean DEFAULT false NOT NULL;
 ALTER TABLE job_sets ADD COLUMN access_code character varying(64);

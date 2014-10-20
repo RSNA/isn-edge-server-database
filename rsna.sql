@@ -1,4 +1,4 @@
-﻿--
+--
 -- PostgreSQL database dump
 --
 
@@ -13,7 +13,7 @@ SET escape_string_warning = off;
 -- Name: rsnadb; Type: DATABASE; Schema: -; Owner: edge
 --
 
-CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' ;
+CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'en_US.UTF-8' LC_CTYPE = 'en_US.UTF-8';
 
 
 ALTER DATABASE rsnadb OWNER TO edge;
