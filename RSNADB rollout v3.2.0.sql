@@ -46,6 +46,8 @@ WITH (
 ALTER TABLE email_jobs OWNER TO edge;
 COMMENT ON TABLE email_jobs IS 'This table is used to store queued emails. Jobs within the queue will be handled by a worker thread which is responsible for handling any send failures and retrying failed jobs';
 
+INSERT INTO email_configurations VALUES('mail.smtp.from','',now());
+INSERT INTO email_configurations VALUES('mail.smtp.host','',now());
 INSERT INTO email_configurations VALUES('enable_error_email','false',now());
 INSERT INTO email_configurations VALUES('enable_patient_email','false',now());
 INSERT INTO email_configurations VALUES('error_email_recipients','',now());
