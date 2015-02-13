@@ -1150,6 +1150,8 @@ COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
 --
 
 COPY email_configurations (key, value, modified_date) FROM stdin;
+mail.smtp.from		2015-02-13 12:05:05.933-06
+mail.smtp.host		2015-02-13 12:05:05.933-06
 enable_error_email	false	2014-02-21 12:05:05.933-06
 enable_patient_email	false	2014-02-21 12:05:05.933-06
 error_email_recipients		2014-02-21 12:05:05.933-06
