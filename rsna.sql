@@ -1004,6 +1004,36 @@ CREATE VIEW v_job_status AS
 ALTER TABLE public.v_job_status OWNER TO edge;
 
 --
+-- Name: v_consented; Type: VIEW; Schema: public; Owner: edge
+--
+
+CREATE VIEW v_consented AS
+    SELECT * FROM patients WHERE (patients.consent_timestamp IS NOT NULL);
+
+
+ALTER TABLE public.v_consented OWNER TO edge;
+
+--
+-- Name: v_exams_sent; Type: VIEW; Schema: public; Owner: edge
+--
+
+CREATE VIEW v_exams_sent AS
+    SELECT * FROM transactions WHERE (transactions.status_code = 40);
+
+
+ALTER TABLE public.v_exams_sent OWNER TO edge;
+
+--
+-- Name: v_patients_sent; Type: VIEW; Schema: public; Owner: edge
+--
+
+CREATE VIEW v_patients_sent AS
+    SELECT DISTINCT job_sets.patient_id FROM transactions, jobs, job_sets WHERE (((transactions.status_code = 40) AND (transactions.job_id = jobs.job_id)) AND (jobs.job_set_id = job_sets.job_set_id));
+
+
+ALTER TABLE public.v_patients_sent OWNER TO edge;
+
+--
 -- Name: device_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
