@@ -1134,6 +1134,8 @@ secondary-capture-report-enabled	true	2014-02-21 12:05:05.933-06
 scp-idle-timeout	60000	2014-06-18 12:05:05.933-06
 attach-dicom-report	true	2014-10-16 14:57:33.549-06
 submit-stats	false	2014-10-16 14:58:33.549-06
+scp-max-send-pdu-length	16364	2015-03-20 12:00:05.933-06
+scp-max-receive-pdu-length	16364	2015-03-20 12:00:05.933-06
 \.
 
 
