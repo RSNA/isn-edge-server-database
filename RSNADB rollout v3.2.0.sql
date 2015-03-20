@@ -10,6 +10,8 @@ INSERT INTO configurations VALUES('secondary-capture-report-enabled','true',now(
 INSERT INTO configurations VALUES('scp-idle-timeout','60000',now());
 INSERT INTO configurations VALUES('attach-dicom-report','true',now());
 INSERT INTO configurations VALUES('submit-stats','false',now());
+INSERT INTO configurations VALUES('scp-max-send-pdu-length','16364',now());
+INSERT INTO configurations VALUES('scp-max-receive-pdu-length','16364',now());
 INSERT INTO status_codes (status_code, description, send_alert) VALUES (-24,'Exam has been canceled',FALSE);
 
 -- Table: email_configurations
