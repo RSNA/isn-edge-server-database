@@ -107,3 +107,23 @@ CREATE INDEX transactions_status_code_idx ON transactions USING btree (status_co
 CREATE INDEX transactions_job_id ON transactions USING btree (job_id);
 
 CREATE INDEX transactions_modified_date ON transactions USING btree (modified_date);
+
+CREATE OR REPLACE VIEW v_consented AS 
+select * from patients where consent_timestamp is not null;
+
+ALTER TABLE v_consented OWNER TO edge;
+
+CREATE OR REPLACE VIEW v_patients_sent AS 
+select DISTINCT job_sets.patient_id
+from transactions ,jobs,job_sets
+where
+  (transactions.status_code = 40) AND
+  (transactions.job_id = jobs.job_id) AND
+  (jobs.job_set_id = job_sets.job_set_id);
+
+ALTER TABLE v_patients_sent OWNER TO edge;
+
+CREATE OR REPLACE VIEW v_exams_sent AS 
+select * from transactions where status_code = 40;
+
+ALTER TABLE v_exams_sent OWNER TO edge;
