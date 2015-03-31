@@ -1,6 +1,5 @@
 UPDATE schema_version SET version='3.2.0', modified_date=now();
 
-ALTER TABLE status_codes ADD COLUMN send_alert Boolean DEFAULT false NOT NULL;
 ALTER TABLE job_sets ADD COLUMN access_code character varying(64);
 ALTER TABLE job_sets ADD COLUMN send_to_site Boolean DEFAULT false NOT NULL;
 
@@ -12,7 +11,8 @@ INSERT INTO configurations VALUES('attach-dicom-report','true',now());
 INSERT INTO configurations VALUES('submit-stats','false',now());
 INSERT INTO configurations VALUES('scp-max-send-pdu-length','16364',now());
 INSERT INTO configurations VALUES('scp-max-receive-pdu-length','16364',now());
-INSERT INTO status_codes (status_code, description, send_alert) VALUES (-24,'Exam has been canceled',FALSE);
+INSERT INTO configurations VALUES('site_id','TBD',now());
+INSERT INTO status_codes (status_code, description) VALUES (-24,'Exam has been canceled');
 
 -- Table: email_configurations
 CREATE TABLE email_configurations
