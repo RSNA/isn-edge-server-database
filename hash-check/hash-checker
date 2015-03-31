@@ -1,0 +1,18 @@
+#!/bin/bash
+
+clear
+echo "//////////////////////////////////"
+echo "RSNA ISN Hash checker"
+echo "//////////////////////////////////"
+echo 
+echo "the correct md5 signature for this version is given"
+echo "by the big number in the next line"
+cat *.md5
+
+echo
+echo "the md5 of the file you have downloaded is ..."
+md5sum *.zip
+
+echo
+echo "if the 2 md5's do not match you need to get a fresh copy"
+echo "of the RSNA-ISN installer"
