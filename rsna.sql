@@ -793,8 +793,7 @@ SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
 CREATE TABLE status_codes (
     status_code integer NOT NULL,
     description character varying(255),
-    modified_date timestamp with time zone DEFAULT now(),
-    send_alert boolean DEFAULT false NOT NULL
+    modified_date timestamp with time zone DEFAULT now()
 );
 
 
@@ -1166,6 +1165,7 @@ attach-dicom-report	true	2014-10-16 14:57:33.549-06
 submit-stats	false	2014-10-16 14:58:33.549-06
 scp-max-send-pdu-length	16364	2015-03-20 12:00:05.933-06
 scp-max-receive-pdu-length	16364	2015-03-20 12:00:05.933-06
+site_id	TBD	2015-03-31 16:35:16.668828-06
 \.
 
 
@@ -1298,26 +1298,26 @@ COPY schema_version (id, version, modified_date) FROM stdin;
 -- Data for Name: status_codes; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY status_codes (status_code, description, modified_date, send_alert) FROM stdin;
-31	Started processing input data	2010-10-22 09:58:07.496506-05	f
-21	Waiting for report finalization	2010-10-22 11:59:15.243445-05	f
-23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05	f
-30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05	f
-22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05	f
-24	Waiting for exam completion	2013-02-26 14:57:33.549-06	f
-32	Started KOS generation	2010-10-22 09:58:07.496506-05	f
-33	Started patient registration	2010-10-22 09:58:07.496506-05	f
-34	Started document submission	2010-10-22 09:58:07.496506-05	f
-40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05	f
-1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05	f
--23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05	f
--21	Unable to find images	2010-10-22 11:59:15.243445-05	f
--32	Failed to generate KOS	2010-11-02 09:39:45.53873-05	f
--30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05	f
--20	Failed to prepare content	2010-10-22 09:58:07.496506-05	f
--33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05	f
--34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05	f
--24	Exam has been canceled	2014-09-03 15:41:37.99-05	f
+COPY status_codes (status_code, description, modified_date) FROM stdin;
+31	Started processing input data	2010-10-22 09:58:07.496506-05
+21	Waiting for report finalization	2010-10-22 11:59:15.243445-05
+23	Started DICOM C-MOVE	2010-10-22 11:59:15.243445-05
+30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05
+22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
+24	Waiting for exam completion	2013-02-26 14:57:33.549-06
+32	Started KOS generation	2010-10-22 09:58:07.496506-05
+33	Started patient registration	2010-10-22 09:58:07.496506-05
+34	Started document submission	2010-10-22 09:58:07.496506-05
+40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05
+1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05
+-23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05
+-21	Unable to find images	2010-10-22 11:59:15.243445-05
+-32	Failed to generate KOS	2010-11-02 09:39:45.53873-05
+-30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05
+-20	Failed to prepare content	2010-10-22 09:58:07.496506-05
+-33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05
+-34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05
+-24	Exam has been canceled	2014-09-03 15:41:37.99-05
 \.
 
 
