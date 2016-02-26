@@ -1289,7 +1289,7 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
-0	3.2.0	2014-02-21 12:05:05.933-06
+0	4.0.0	2016-02-25 12:05:05.933-06
 \.
 
 
