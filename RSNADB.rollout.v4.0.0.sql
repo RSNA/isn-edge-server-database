@@ -1,3 +1,4 @@
+UPDATE schema_version SET version='4.0.0', modified_date=now();
 -- latest exam status decided by report_id which is the order of when the event was inserted
 -- instead of status_timestamp to handle rescheduled exams
 DROP VIEW v_exam_status;
