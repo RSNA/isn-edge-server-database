@@ -30,3 +30,23 @@ CREATE OR REPLACE VIEW v_job_status AS
                   WHERE t2.job_id = t1.job_id))) t ON j.job_id = t.job_id;
 
 ALTER TABLE v_job_status OWNER TO edge;
+
+-- Table: sms_configurations
+CREATE TABLE sms_configurations
+(
+  "key" character varying NOT NULL,
+  "value" character varying NOT NULL,
+  modified_date timestamp with time zone DEFAULT now(),
+  CONSTRAINT pk_sms_configuration_key PRIMARY KEY (key)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE sms_configurations OWNER TO edge;
+COMMENT ON TABLE sms_configurations IS 'This table is used to store SMS configuration as key/value pairs';
+
+INSERT INTO sms_configurations VALUES('enable_sms','false',now());
+INSERT INTO sms_configurations VALUES('account_id','',now());
+INSERT INTO sms_configurations VALUES('token','',now());
+INSERT INTO sms_configurations VALUES('sender','',now());
+INSERT INTO sms_configurations VALUES('body', 'Your RSNA Image Share Access Code is $accesscode$.',now());
