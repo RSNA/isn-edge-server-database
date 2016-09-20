@@ -1,5 +1,8 @@
-UPDATE schema_version SET version='4.1.0', modified_date=now();
--- v_job_status update to include access_code
+UPDATE schema_version SET version='5.0.0', modified_date=now();
+
+ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
+
+-- v_job_status update to include access_code, phone_number
 DROP VIEW v_job_status;
 CREATE OR REPLACE VIEW v_job_status AS 
  SELECT js.job_set_id,
@@ -11,6 +14,7 @@ CREATE OR REPLACE VIEW v_job_status AS
     t.modified_date AS last_transaction_timestamp,
     js.single_use_patient_id,
     js.email_address,
+	js.phone_number,
     t.comments,
     js.send_on_complete,
 	js.access_code,
@@ -50,3 +54,22 @@ INSERT INTO sms_configurations VALUES('account_id','',now());
 INSERT INTO sms_configurations VALUES('token','',now());
 INSERT INTO sms_configurations VALUES('sender','',now());
 INSERT INTO sms_configurations VALUES('body', 'Your RSNA Image Share Access Code is $accesscode$.',now());
+
+-- Table: sms_jobs
+CREATE TABLE sms_jobs
+(
+  sms_job_id serial NOT NULL,
+  recipient character varying NOT NULL,
+  message	text,
+  sent		boolean NOT NULL DEFAULT false,
+  failed	boolean NOT NULL DEFAULT false,
+  comments	character varying,
+  created_date	timestamp with time zone NOT NULL,
+  modified_date timestamp with time zone DEFAULT now(),
+  CONSTRAINT pk_sms_job_id PRIMARY KEY (sms_job_id)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE sms_jobs OWNER TO edge;
+COMMENT ON TABLE sms_jobs IS 'This table is used to store queued SMS messages. Jobs within the queue will be handled by a worker thread which is responsible for handling any send failures and retrying failed jobs';
