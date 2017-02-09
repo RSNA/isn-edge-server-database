@@ -1,7 +1,55 @@
 UPDATE schema_version SET version='5.0.0', modified_date=now();
 
 ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
+ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
+INSERT INTO public.users (user_login, user_name,role_id)
+SELECT 'AUTOSEND','System AutoSend',0
+WHERE NOT EXISTS (SELECT user_id FROM public.users WHERE user_login='AUTOSEND')
+
+-- On each new incoming exam, create job if patient marked for autosend 
+CREATE OR REPLACE FUNCTION fn_exam_autosend() RETURNS trigger AS $exam_autosend$
+DECLARE 
+	v_email_address character varying(255); 
+	v_single_use_patient_id character varying(64); 
+	v_access_code character varying(64); 
+	v_max_retries integer; 
+	v_user_id integer; 
+	v_job_set_id integer; 
+	v_job_id integer;    
+BEGIN        
+	-- the exam belongs to patient with autosend flag is true        
+	IF (SELECT autosend FROM patients WHERE patient_id=NEW.patient_id) THEN            
+		SELECT email_address,single_use_patient_id,access_code     
+		INTO v_email_address,v_single_use_patient_id,v_access_code   
+		FROM job_sets   
+		WHERE patient_id = NEW.patient_id   
+		ORDER BY modified_date DESC   
+		FETCH FIRST 1 ROW ONLY;   
+		
+		IF v_single_use_patient_id IS NOT NULL THEN    
+			SELECT value INTO v_max_retries FROM configurations WHERE key='max-retries';    
+			SELECT user_id INTO v_user_id FROM users WHERE user_login='AUTOSEND';    
+		
+			INSERT INTO job_sets (patient_id,user_id,email_address,single_use_patient_id,access_code)    
+			VALUES (NEW.patient_id,v_user_id,v_email_address,v_single_use_patient_id,v_access_code)    
+			RETURNING job_set_id INTO v_job_set_id;    
+		
+			INSERT INTO jobs (job_set_id,exam_id,remaining_retries)    
+			VALUES (v_job_set_id,NEW.exam_id,v_max_retries)    
+			RETURNING job_id INTO v_job_id;    
+		
+			INSERT INTO transactions (job_id,status_code,comments)    
+			VALUES (v_job_id,1,'Queued');   
+		END IF;        
+	END IF;        
+	RETURN NEW;    
+END;
+$exam_autosend$ LANGUAGE plpgsql; 
+
+CREATE TRIGGER trigger_exam_autosend AFTER INSERT ON exams    
+	FOR EACH ROW EXECUTE PROCEDURE fn_exam_autosend();
+	
 -- v_job_status update to include access_code, phone_number
 DROP VIEW v_job_status;
 CREATE OR REPLACE VIEW v_job_status AS 
