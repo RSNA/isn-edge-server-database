@@ -1,6 +1,7 @@
 UPDATE schema_version SET version='5.0.0', modified_date=now();
 
 ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
+ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
 INSERT INTO public.users (user_login, user_name,role_id)
@@ -129,5 +130,9 @@ SET value = '<b><font size="24">RSNA Image Share</font></b><br><b><i><font size=
 , modified_date = now()
 WHERE key = 'patient_email_body';
 
---Add status code
-INSERT INTO status_codes (status_code,description) VALUES (-1,'No devices found');
+--Update status codes
+INSERT INTO status_codes (status_code,description,modified_date) VALUES (-1,'No devices found',now());
+UPDATE status_codes set description = 'Started patient registration', modified_date = now() WHERE status_code = 32;
+UPDATE status_codes set description = 'Retrieving global id', modified_date = now() WHERE status_code = 33;
+UPDATE status_codes set description = 'Failed to register patient with clearinghouse', modified_date = now() WHERE status_code = -32;
+UPDATE status_codes set description = 'Failed to retrieve global id', modified_date = now() WHERE status_code = -33;
