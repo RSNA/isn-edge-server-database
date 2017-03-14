@@ -136,3 +136,6 @@ UPDATE status_codes set description = 'Started patient registration', modified_d
 UPDATE status_codes set description = 'Retrieving global id', modified_date = now() WHERE status_code = 33;
 UPDATE status_codes set description = 'Failed to register patient with clearinghouse', modified_date = now() WHERE status_code = -32;
 UPDATE status_codes set description = 'Failed to retrieve global id', modified_date = now() WHERE status_code = -33;
+
+--Add Pateint search index
+create index patient_search_idx on patients using gin(to_tsvector('simple', trim(leading '0' from mrn) || ' ' || coalesce(patient_name,'') || ' ' || coalesce(extract(year from dob)::text,'') || ' ' || coalesce(email_address, '')));
