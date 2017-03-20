@@ -4,6 +4,9 @@ ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
 ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
+--Add PDF template field
+INSERT INTO configurations (key,value) VALUES ('pdf-template','pdf-template.pdf');
+
 INSERT INTO public.users (user_login, user_name,role_id)
 SELECT 'AUTOSEND','System AutoSend',0
 WHERE NOT EXISTS (SELECT user_id FROM public.users WHERE user_login='AUTOSEND');
