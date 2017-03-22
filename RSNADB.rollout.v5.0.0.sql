@@ -102,11 +102,14 @@ WITH (
 ALTER TABLE sms_configurations OWNER TO edge;
 COMMENT ON TABLE sms_configurations IS 'This table is used to store SMS configuration as key/value pairs';
 
-INSERT INTO sms_configurations VALUES('enable_sms','false',now());
-INSERT INTO sms_configurations VALUES('account_id','',now());
-INSERT INTO sms_configurations VALUES('token','',now());
-INSERT INTO sms_configurations VALUES('sender','',now());
-INSERT INTO sms_configurations VALUES('body','Your imaging results are ready to be accessed. Your Access Code is $accesscode$. Instructions available at http://www.rsna.org/image_share.aspx.',now());
+INSERT INTO sms_configurations VALUES ('enable_sms','false',now());
+INSERT INTO sms_configurations VALUES ('account_id','',now());
+INSERT INTO sms_configurations VALUES ('token','',now());
+INSERT INTO sms_configurations VALUES ('sender','',now());
+INSERT INTO sms_configurations VALUES ('body','Your imaging results are ready to be accessed. Your Access Code is $accesscode$. Instructions available at http://www.rsna.org/image_share.aspx.',now());
+INSERT INTO sms_configurations VALUES ('proxy_host','192.203.117.40',now());
+INSERT INTO sms_configurations VALUES ('proxy_port','3128',now());
+INSERT INTO sms_configurations VALUES ('proxy_set','false',now());
 
 -- Table: sms_jobs
 CREATE TABLE sms_jobs
