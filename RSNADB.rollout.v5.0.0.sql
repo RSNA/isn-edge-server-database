@@ -11,53 +11,53 @@ INSERT INTO public.users (user_login, user_name,role_id)
 SELECT 'AUTOSEND','System AutoSend',0
 WHERE NOT EXISTS (SELECT user_id FROM public.users WHERE user_login='AUTOSEND');
 
--- On each new incoming exam, create job if patient marked for autosend 
+-- On each new incoming exam, create job if patient marked for autosend
 CREATE OR REPLACE FUNCTION fn_exam_autosend() RETURNS trigger AS $exam_autosend$
-DECLARE 
-	v_email_address character varying(255); 
-	v_single_use_patient_id character varying(64); 
-	v_access_code character varying(64); 
-	v_max_retries integer; 
-	v_user_id integer; 
-	v_job_set_id integer; 
-	v_job_id integer;    
-BEGIN        
-	-- the exam belongs to patient with autosend flag is true        
-	IF (SELECT autosend FROM patients WHERE patient_id=NEW.patient_id) THEN            
-		SELECT email_address,single_use_patient_id,access_code     
-		INTO v_email_address,v_single_use_patient_id,v_access_code   
-		FROM job_sets   
-		WHERE patient_id = NEW.patient_id   
-		ORDER BY modified_date DESC   
-		FETCH FIRST 1 ROW ONLY;   
-		
-		IF v_single_use_patient_id IS NOT NULL THEN    
-			SELECT value INTO v_max_retries FROM configurations WHERE key='max-retries';    
-			SELECT user_id INTO v_user_id FROM users WHERE user_login='AUTOSEND';    
-		
-			INSERT INTO job_sets (patient_id,user_id,email_address,single_use_patient_id,access_code)    
-			VALUES (NEW.patient_id,v_user_id,v_email_address,v_single_use_patient_id,v_access_code)    
-			RETURNING job_set_id INTO v_job_set_id;    
-		
-			INSERT INTO jobs (job_set_id,exam_id,remaining_retries)    
-			VALUES (v_job_set_id,NEW.exam_id,v_max_retries)    
-			RETURNING job_id INTO v_job_id;    
-		
-			INSERT INTO transactions (job_id,status_code,comments)    
-			VALUES (v_job_id,1,'Queued');   
-		END IF;        
-	END IF;        
-	RETURN NEW;    
+DECLARE
+	v_email_address character varying(255);
+	v_single_use_patient_id character varying(64);
+	v_access_code character varying(64);
+	v_max_retries integer;
+	v_user_id integer;
+	v_job_set_id integer;
+	v_job_id integer;
+BEGIN
+	-- the exam belongs to patient with autosend flag is true
+	IF (SELECT autosend FROM patients WHERE patient_id=NEW.patient_id) THEN
+		SELECT email_address,single_use_patient_id,access_code
+		INTO v_email_address,v_single_use_patient_id,v_access_code
+		FROM job_sets
+		WHERE patient_id = NEW.patient_id
+		ORDER BY modified_date DESC
+		FETCH FIRST 1 ROW ONLY;
+
+		IF v_single_use_patient_id IS NOT NULL THEN
+			SELECT value INTO v_max_retries FROM configurations WHERE key='max-retries';
+			SELECT user_id INTO v_user_id FROM users WHERE user_login='AUTOSEND';
+
+			INSERT INTO job_sets (patient_id,user_id,email_address,single_use_patient_id,access_code)
+			VALUES (NEW.patient_id,v_user_id,v_email_address,v_single_use_patient_id,v_access_code)
+			RETURNING job_set_id INTO v_job_set_id;
+
+			INSERT INTO jobs (job_set_id,exam_id,remaining_retries)
+			VALUES (v_job_set_id,NEW.exam_id,v_max_retries)
+			RETURNING job_id INTO v_job_id;
+
+			INSERT INTO transactions (job_id,status_code,comments)
+			VALUES (v_job_id,1,'Queued');
+		END IF;
+	END IF;
+	RETURN NEW;
 END;
-$exam_autosend$ LANGUAGE plpgsql; 
+$exam_autosend$ LANGUAGE plpgsql;
 ALTER FUNCTION fn_exam_autosend() OWNER TO edge;
 
-CREATE TRIGGER trigger_exam_autosend AFTER INSERT ON exams    
+CREATE TRIGGER trigger_exam_autosend AFTER INSERT ON exams
 	FOR EACH ROW EXECUTE PROCEDURE fn_exam_autosend();
-	
+
 -- v_job_status update to include access_code, phone_number
 DROP VIEW v_job_status;
-CREATE OR REPLACE VIEW v_job_status AS 
+CREATE OR REPLACE VIEW v_job_status AS
  SELECT js.job_set_id,
     j.job_id,
     j.exam_id,
@@ -131,8 +131,8 @@ ALTER TABLE sms_jobs OWNER TO edge;
 COMMENT ON TABLE sms_jobs IS 'This table is used to store queued SMS messages. Jobs within the queue will be handled by a worker thread which is responsible for handling any send failures and retrying failed jobs';
 
 --Update email content
-UPDATE email_configurations 
-SET value = '<b><font size="24">RSNA Image Share</font></b><br><b><i><font size="5">Take Control of Your Medical Images</font></i></b></h2><br><br><br>Dear $patientname$,<br><br>Welcome to Image Share, a network designed to enable patients to access and control their medical imaging results. Image Share was developed by the Radiological Society of North America (RSNA) and its partners, with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>You are receiving this message because the radiology staff at $site_id$ have sent your imaging results to a secure online data repository so you can access them.<br><br>To access your images:<br><br><ol><li><b>Create a personal health record (PHR) account on one of the participating image-enabled PHR systems.</b> If you created an account following an earlier visit, simply log in. You can create an account on one of the following participating sites:<br><br><ul><li>DICOM Grid:<a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a></li><li>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a></li></ul><br><br>Each of these sites provides detailed instructions on creating an account and using it to retrieve your imaging results. Be careful to record your PHR account log in information (PHR provider, user name and password) and keep it secure, as you do with all your valuable online information.</li><br><br><li><b>Use your PHR account to access and take control of your imaging results.</b> Once you’ve created an account, you’ll just need to log in and provide two pieces of information to access your images and reports:<br><br>Your Access Code: <b>$accesscode$</b><br>Your date of birth<br><br>That’s all you need to retrieve the images and report into your PHR account. You can then use your PHR account to share information with others you trust, including care providers. They can view the images and the report anywhere Internet access is available. Some PHRs enable you to email a link to your images, so a provider can view your examinations without you needing to be present.</li></ol><br><br>User support is available during business hours at <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).' 
+UPDATE email_configurations
+SET value = '<b><font size="24">RSNA Image Share</font></b><br><b><i><font size="5">Take Control of Your Medical Images</font></i></b></h2><br><br><br>Dear $patientname$,<br><br>Welcome to Image Share, a network designed to enable patients to access and control their medical imaging results. Image Share was developed by the Radiological Society of North America (RSNA) and its partners, with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>You are receiving this message because the radiology staff at $site_id$ have sent your imaging results to a secure online data repository so you can access them.<br><br>To access your images:<br><br><ol><li><b>Create a personal health record (PHR) account on one of the participating image-enabled PHR systems.</b> If you created an account following an earlier visit, simply log in. You can create an account on one of the following participating sites:<br><br><ul><li>DICOM Grid:<a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a></li><li>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a></li></ul><br><br>Each of these sites provides detailed instructions on creating an account and using it to retrieve your imaging results. Be careful to record your PHR account log in information (PHR provider, user name and password) and keep it secure, as you do with all your valuable online information.</li><br><br><li><b>Use your PHR account to access and take control of your imaging results.</b> Once you’ve created an account, you’ll just need to log in and provide two pieces of information to access your images and reports:<br><br>Your Access Code: <b>$accesscode$</b><br>Your date of birth<br><br>That’s all you need to retrieve the images and report into your PHR account. You can then use your PHR account to share information with others you trust, including care providers. They can view the images and the report anywhere Internet access is available. Some PHRs enable you to email a link to your images, so a provider can view your examinations without you needing to be present.</li></ol><br><br>User support is available during business hours at <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).'
 , modified_date = now()
 WHERE key = 'patient_email_body';
 
