@@ -5,7 +5,7 @@ ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
 --Add pdf-template key to configurations
-INSERT INTO configurations (value,key) VALUES ('pdf-template','false');
+INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
 
 INSERT INTO public.users (user_login, user_name,role_id)
 SELECT 'AUTOSEND','System AutoSend',0
