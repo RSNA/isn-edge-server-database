@@ -2,18 +2,26 @@
 -- PostgreSQL database dump
 --
 
+-- Dumped from database version 9.5.1
+-- Dumped by pg_dump version 9.5.1
+
 SET statement_timeout = 0;
+SET lock_timeout = 0;
 SET client_encoding = 'UTF8';
-SET standard_conforming_strings = off;
+SET standard_conforming_strings = on;
 SET check_function_bodies = false;
 SET client_min_messages = warning;
-SET escape_string_warning = off;
+SET row_security = off;
 
 --
 -- Name: rsnadb; Type: DATABASE; Schema: -; Owner: edge
 --
 
+-- For UNIX system
 CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'en_US.UTF-8' LC_CTYPE = 'en_US.UTF-8';
+
+-- For Windows system
+-- CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
 
 
 ALTER DATABASE rsnadb OWNER TO edge;
@@ -21,11 +29,12 @@ ALTER DATABASE rsnadb OWNER TO edge;
 \connect rsnadb
 
 SET statement_timeout = 0;
+SET lock_timeout = 0;
 SET client_encoding = 'UTF8';
-SET standard_conforming_strings = off;
+SET standard_conforming_strings = on;
 SET check_function_bodies = false;
 SET client_min_messages = warning;
-SET escape_string_warning = off;
+SET row_security = off;
 
 --
 -- Name: rsnadb; Type: COMMENT; Schema: -; Owner: edge
@@ -59,22 +68,76 @@ Copyright (c) 2010, Radiological Society of North America
 
 
 --
--- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
 --
 
-CREATE PROCEDURAL LANGUAGE plpgsql;
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 
-ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
 
 SET search_path = public, pg_catalog;
+
+--
+-- Name: fn_exam_autosend(); Type: FUNCTION; Schema: public; Owner: edge
+--
+
+CREATE FUNCTION fn_exam_autosend() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	v_email_address character varying(255);
+	v_single_use_patient_id character varying(64);
+	v_access_code character varying(64);
+	v_max_retries integer;
+	v_user_id integer;
+	v_job_set_id integer;
+	v_job_id integer;
+    BEGIN
+        -- the exam belongs to patient with autosend flag is true
+        IF (SELECT autosend FROM patients WHERE patient_id=NEW.patient_id) THEN
+            SELECT email_address,single_use_patient_id,access_code 
+				INTO v_email_address,v_single_use_patient_id,v_access_code
+			FROM job_sets
+			WHERE patient_id = NEW.patient_id
+			ORDER BY modified_date DESC
+			FETCH FIRST 1 ROW ONLY;
+
+			IF v_single_use_patient_id IS NOT NULL THEN
+				SELECT value INTO v_max_retries FROM configurations WHERE key='max-retries';
+
+				SELECT user_id INTO v_user_id FROM users WHERE user_login='AUTOSEND';
+
+				INSERT INTO job_sets (patient_id,user_id,email_address,single_use_patient_id,access_code)
+				VALUES (NEW.patient_id,v_user_id,v_email_address,v_single_use_patient_id,v_access_code)
+				RETURNING job_set_id INTO v_job_set_id;
+
+				INSERT INTO jobs (job_set_id,exam_id,remaining_retries)
+				VALUES (v_job_set_id,NEW.exam_id,v_max_retries)
+				RETURNING job_id INTO v_job_id;
+
+				INSERT INTO transactions (job_id,status_code,comments)
+				VALUES (v_job_id,1,'Queued');
+			END IF;
+        END IF;
+        RETURN NEW;
+    END;
+$$;
+
+
+ALTER FUNCTION public.fn_exam_autosend() OWNER TO edge;
 
 SET default_tablespace = '';
 
 SET default_with_oids = false;
 
 --
--- Name: configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: configurations; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE configurations (
@@ -84,7 +147,7 @@ CREATE TABLE configurations (
 );
 
 
-ALTER TABLE public.configurations OWNER TO edge;
+ALTER TABLE configurations OWNER TO edge;
 
 --
 -- Name: TABLE configurations; Type: COMMENT; Schema: public; Owner: edge
@@ -100,7 +163,7 @@ e) etc';
 
 
 --
--- Name: devices; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: devices; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE devices (
@@ -112,7 +175,7 @@ CREATE TABLE devices (
 );
 
 
-ALTER TABLE public.devices OWNER TO edge;
+ALTER TABLE devices OWNER TO edge;
 
 --
 -- Name: TABLE devices; Type: COMMENT; Schema: public; Owner: edge
@@ -133,12 +196,12 @@ b) ?
 CREATE SEQUENCE devices_device_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.devices_device_id_seq OWNER TO edge;
+ALTER TABLE devices_device_id_seq OWNER TO edge;
 
 --
 -- Name: devices_device_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -148,14 +211,7 @@ ALTER SEQUENCE devices_device_id_seq OWNED BY devices.device_id;
 
 
 --
--- Name: devices_device_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('devices_device_id_seq', 1, true);
-
-
---
--- Name: email_configurations; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: email_configurations; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE email_configurations (
@@ -165,7 +221,7 @@ CREATE TABLE email_configurations (
 );
 
 
-ALTER TABLE public.email_configurations OWNER TO edge;
+ALTER TABLE email_configurations OWNER TO edge;
 
 --
 -- Name: TABLE email_configurations; Type: COMMENT; Schema: public; Owner: edge
@@ -175,7 +231,7 @@ COMMENT ON TABLE email_configurations IS 'This table is used to store email conf
 
 
 --
--- Name: email_jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: email_jobs; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE email_jobs (
@@ -191,7 +247,7 @@ CREATE TABLE email_jobs (
 );
 
 
-ALTER TABLE public.email_jobs OWNER TO edge;
+ALTER TABLE email_jobs OWNER TO edge;
 
 --
 -- Name: TABLE email_jobs; Type: COMMENT; Schema: public; Owner: edge
@@ -207,12 +263,12 @@ COMMENT ON TABLE email_jobs IS 'This table is used to store queued emails. Jobs 
 CREATE SEQUENCE email_jobs_email_job_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.email_jobs_email_job_id_seq OWNER TO edge;
+ALTER TABLE email_jobs_email_job_id_seq OWNER TO edge;
 
 --
 -- Name: email_jobs_email_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -222,14 +278,7 @@ ALTER SEQUENCE email_jobs_email_job_id_seq OWNED BY email_jobs.email_job_id;
 
 
 --
--- Name: email_jobs_email_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('email_jobs_email_job_id_seq', 1, false);
-
-
---
--- Name: exams; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: exams; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE exams (
@@ -241,7 +290,7 @@ CREATE TABLE exams (
 );
 
 
-ALTER TABLE public.exams OWNER TO edge;
+ALTER TABLE exams OWNER TO edge;
 
 --
 -- Name: TABLE exams; Type: COMMENT; Schema: public; Owner: edge
@@ -257,12 +306,12 @@ COMMENT ON TABLE exams IS 'A listing of all ordered DICOM exams the system knows
 CREATE SEQUENCE exams_exam_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.exams_exam_id_seq OWNER TO edge;
+ALTER TABLE exams_exam_id_seq OWNER TO edge;
 
 --
 -- Name: exams_exam_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -272,14 +321,7 @@ ALTER SEQUENCE exams_exam_id_seq OWNED BY exams.exam_id;
 
 
 --
--- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('exams_exam_id_seq', 101, true);
-
-
---
--- Name: hipaa_audit_accession_numbers; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: hipaa_audit_accession_numbers; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE hipaa_audit_accession_numbers (
@@ -290,7 +332,7 @@ CREATE TABLE hipaa_audit_accession_numbers (
 );
 
 
-ALTER TABLE public.hipaa_audit_accession_numbers OWNER TO edge;
+ALTER TABLE hipaa_audit_accession_numbers OWNER TO edge;
 
 --
 -- Name: TABLE hipaa_audit_accession_numbers; Type: COMMENT; Schema: public; Owner: edge
@@ -307,12 +349,12 @@ COMMENT ON TABLE hipaa_audit_accession_numbers IS 'Part of the HIPAA tracking fo
 CREATE SEQUENCE hipaa_audit_accession_numbers_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.hipaa_audit_accession_numbers_id_seq OWNER TO edge;
+ALTER TABLE hipaa_audit_accession_numbers_id_seq OWNER TO edge;
 
 --
 -- Name: hipaa_audit_accession_numbers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -322,14 +364,7 @@ ALTER SEQUENCE hipaa_audit_accession_numbers_id_seq OWNED BY hipaa_audit_accessi
 
 
 --
--- Name: hipaa_audit_accession_numbers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 388, true);
-
-
---
--- Name: hipaa_audit_mrns; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: hipaa_audit_mrns; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE hipaa_audit_mrns (
@@ -340,7 +375,7 @@ CREATE TABLE hipaa_audit_mrns (
 );
 
 
-ALTER TABLE public.hipaa_audit_mrns OWNER TO edge;
+ALTER TABLE hipaa_audit_mrns OWNER TO edge;
 
 --
 -- Name: TABLE hipaa_audit_mrns; Type: COMMENT; Schema: public; Owner: edge
@@ -357,12 +392,12 @@ COMMENT ON TABLE hipaa_audit_mrns IS 'Part of the HIPAA tracking for edge device
 CREATE SEQUENCE hipaa_audit_mrns_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.hipaa_audit_mrns_id_seq OWNER TO edge;
+ALTER TABLE hipaa_audit_mrns_id_seq OWNER TO edge;
 
 --
 -- Name: hipaa_audit_mrns_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -372,14 +407,7 @@ ALTER SEQUENCE hipaa_audit_mrns_id_seq OWNED BY hipaa_audit_mrns.id;
 
 
 --
--- Name: hipaa_audit_mrns_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2220, true);
-
-
---
--- Name: hipaa_audit_views; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: hipaa_audit_views; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE hipaa_audit_views (
@@ -391,7 +419,7 @@ CREATE TABLE hipaa_audit_views (
 );
 
 
-ALTER TABLE public.hipaa_audit_views OWNER TO edge;
+ALTER TABLE hipaa_audit_views OWNER TO edge;
 
 --
 -- Name: TABLE hipaa_audit_views; Type: COMMENT; Schema: public; Owner: edge
@@ -407,12 +435,12 @@ COMMENT ON TABLE hipaa_audit_views IS 'Part of the HIPAA tracking for edge devic
 CREATE SEQUENCE hipaa_audit_views_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.hipaa_audit_views_id_seq OWNER TO edge;
+ALTER TABLE hipaa_audit_views_id_seq OWNER TO edge;
 
 --
 -- Name: hipaa_audit_views_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -422,14 +450,7 @@ ALTER SEQUENCE hipaa_audit_views_id_seq OWNED BY hipaa_audit_views.id;
 
 
 --
--- Name: hipaa_audit_views_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1662, true);
-
-
---
--- Name: job_sets; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: job_sets; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE job_sets (
@@ -441,12 +462,13 @@ CREATE TABLE job_sets (
     delay_in_hrs integer DEFAULT 72,
     single_use_patient_id character varying(64) NOT NULL,
     send_on_complete boolean DEFAULT false NOT NULL,
-	access_code character varying(64),
-	send_to_site boolean DEFAULT false NOT NULL
+    access_code character varying(64),
+    send_to_site boolean DEFAULT false NOT NULL,
+    phone_number character varying(20)
 );
 
 
-ALTER TABLE public.job_sets OWNER TO edge;
+ALTER TABLE job_sets OWNER TO edge;
 
 --
 -- Name: TABLE job_sets; Type: COMMENT; Schema: public; Owner: edge
@@ -463,12 +485,12 @@ COMMENT ON TABLE job_sets IS 'This is one of a pair of tables that bind a patien
 CREATE SEQUENCE job_sets_job_set_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.job_sets_job_set_id_seq OWNER TO edge;
+ALTER TABLE job_sets_job_set_id_seq OWNER TO edge;
 
 --
 -- Name: job_sets_job_set_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -478,14 +500,7 @@ ALTER SEQUENCE job_sets_job_set_id_seq OWNED BY job_sets.job_set_id;
 
 
 --
--- Name: job_sets_job_set_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('job_sets_job_set_id_seq', 112, true);
-
-
---
--- Name: jobs; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: jobs; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE jobs (
@@ -499,7 +514,7 @@ CREATE TABLE jobs (
 );
 
 
-ALTER TABLE public.jobs OWNER TO edge;
+ALTER TABLE jobs OWNER TO edge;
 
 --
 -- Name: TABLE jobs; Type: COMMENT; Schema: public; Owner: edge
@@ -516,12 +531,12 @@ COMMENT ON TABLE jobs IS 'This is one of a pair of tables that bind a patient to
 CREATE SEQUENCE jobs_job_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.jobs_job_id_seq OWNER TO edge;
+ALTER TABLE jobs_job_id_seq OWNER TO edge;
 
 --
 -- Name: jobs_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -531,14 +546,7 @@ ALTER SEQUENCE jobs_job_id_seq OWNED BY jobs.job_id;
 
 
 --
--- Name: jobs_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('jobs_job_id_seq', 114, true);
-
-
---
--- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: patient_merge_events; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE patient_merge_events (
@@ -552,7 +560,7 @@ CREATE TABLE patient_merge_events (
 );
 
 
-ALTER TABLE public.patient_merge_events OWNER TO edge;
+ALTER TABLE patient_merge_events OWNER TO edge;
 
 --
 -- Name: TABLE patient_merge_events; Type: COMMENT; Schema: public; Owner: edge
@@ -569,12 +577,12 @@ COMMENT ON TABLE patient_merge_events IS 'When it''s required to swap a patient 
 CREATE SEQUENCE patient_merge_events_event_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.patient_merge_events_event_id_seq OWNER TO edge;
+ALTER TABLE patient_merge_events_event_id_seq OWNER TO edge;
 
 --
 -- Name: patient_merge_events_event_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -584,14 +592,7 @@ ALTER SEQUENCE patient_merge_events_event_id_seq OWNED BY patient_merge_events.e
 
 
 --
--- Name: patient_merge_events_event_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
-
-
---
--- Name: patients; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: patients; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE patients (
@@ -607,11 +608,12 @@ CREATE TABLE patients (
     email_address character varying(255),
     rsna_id character varying(64),
     modified_date timestamp with time zone DEFAULT now(),
-    consent_timestamp timestamp with time zone
+    consent_timestamp timestamp with time zone,
+    autosend boolean DEFAULT false
 );
 
 
-ALTER TABLE public.patients OWNER TO edge;
+ALTER TABLE patients OWNER TO edge;
 
 --
 -- Name: TABLE patients; Type: COMMENT; Schema: public; Owner: edge
@@ -641,12 +643,12 @@ COMMENT ON COLUMN patients.mrn IS 'the actual medical recrod number from the med
 CREATE SEQUENCE patients_patient_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.patients_patient_id_seq OWNER TO edge;
+ALTER TABLE patients_patient_id_seq OWNER TO edge;
 
 --
 -- Name: patients_patient_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -656,14 +658,7 @@ ALTER SEQUENCE patients_patient_id_seq OWNED BY patients.patient_id;
 
 
 --
--- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('patients_patient_id_seq', 90, true);
-
-
---
--- Name: reports; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: reports; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE reports (
@@ -680,7 +675,7 @@ CREATE TABLE reports (
 );
 
 
-ALTER TABLE public.reports OWNER TO edge;
+ALTER TABLE reports OWNER TO edge;
 
 --
 -- Name: TABLE reports; Type: COMMENT; Schema: public; Owner: edge
@@ -696,12 +691,12 @@ COMMENT ON TABLE reports IS 'This table contains exam report and exam status as 
 CREATE SEQUENCE reports_report_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.reports_report_id_seq OWNER TO edge;
+ALTER TABLE reports_report_id_seq OWNER TO edge;
 
 --
 -- Name: reports_report_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -711,14 +706,7 @@ ALTER SEQUENCE reports_report_id_seq OWNED BY reports.report_id;
 
 
 --
--- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('reports_report_id_seq', 186, true);
-
-
---
--- Name: roles; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: roles; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE roles (
@@ -728,7 +716,7 @@ CREATE TABLE roles (
 );
 
 
-ALTER TABLE public.roles OWNER TO edge;
+ALTER TABLE roles OWNER TO edge;
 
 --
 -- Name: TABLE roles; Type: COMMENT; Schema: public; Owner: edge
@@ -739,7 +727,7 @@ COMMENT ON TABLE roles IS 'Combined with table Users, this table defines a user'
 
 
 --
--- Name: schema_version; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: schema_version; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE schema_version (
@@ -749,7 +737,7 @@ CREATE TABLE schema_version (
 );
 
 
-ALTER TABLE public.schema_version OWNER TO edge;
+ALTER TABLE schema_version OWNER TO edge;
 
 --
 -- Name: TABLE schema_version; Type: COMMENT; Schema: public; Owner: edge
@@ -765,12 +753,12 @@ COMMENT ON TABLE schema_version IS 'Store database schema version';
 CREATE SEQUENCE schema_version_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.schema_version_id_seq OWNER TO edge;
+ALTER TABLE schema_version_id_seq OWNER TO edge;
 
 --
 -- Name: schema_version_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -780,14 +768,73 @@ ALTER SEQUENCE schema_version_id_seq OWNED BY schema_version.id;
 
 
 --
--- Name: schema_version_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+-- Name: sms_configurations; Type: TABLE; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
+CREATE TABLE sms_configurations (
+    key character varying NOT NULL,
+    value character varying NOT NULL,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE sms_configurations OWNER TO edge;
+
+--
+-- Name: TABLE sms_configurations; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE sms_configurations IS 'This table is used to store SMS configuration as key/value pairs';
 
 
 --
--- Name: status_codes; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: sms_jobs; Type: TABLE; Schema: public; Owner: edge
+--
+
+CREATE TABLE sms_jobs (
+    sms_job_id integer NOT NULL,
+    recipient character varying NOT NULL,
+    message text,
+    sent boolean DEFAULT false NOT NULL,
+    failed boolean DEFAULT false NOT NULL,
+    comments character varying,
+    created_date timestamp with time zone NOT NULL,
+    modified_date timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE sms_jobs OWNER TO edge;
+
+--
+-- Name: TABLE sms_jobs; Type: COMMENT; Schema: public; Owner: edge
+--
+
+COMMENT ON TABLE sms_jobs IS 'This table is used to store queued SMS messages. Jobs within the queue will be handled by a worker thread which is responsible for handling any send failures and retrying failed jobs';
+
+
+--
+-- Name: sms_jobs_sms_job_id_seq; Type: SEQUENCE; Schema: public; Owner: edge
+--
+
+CREATE SEQUENCE sms_jobs_sms_job_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE sms_jobs_sms_job_id_seq OWNER TO edge;
+
+--
+-- Name: sms_jobs_sms_job_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
+--
+
+ALTER SEQUENCE sms_jobs_sms_job_id_seq OWNED BY sms_jobs.sms_job_id;
+
+
+--
+-- Name: status_codes; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE status_codes (
@@ -797,7 +844,7 @@ CREATE TABLE status_codes (
 );
 
 
-ALTER TABLE public.status_codes OWNER TO edge;
+ALTER TABLE status_codes OWNER TO edge;
 
 --
 -- Name: TABLE status_codes; Type: COMMENT; Schema: public; Owner: edge
@@ -811,7 +858,7 @@ Values in the 30s are owned by the Content-send app';
 
 
 --
--- Name: studies; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: studies; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE studies (
@@ -824,7 +871,7 @@ CREATE TABLE studies (
 );
 
 
-ALTER TABLE public.studies OWNER TO edge;
+ALTER TABLE studies OWNER TO edge;
 
 --
 -- Name: TABLE studies; Type: COMMENT; Schema: public; Owner: edge
@@ -840,12 +887,12 @@ COMMENT ON TABLE studies IS 'DICOM uid info for exams listed by accession in tab
 CREATE SEQUENCE studies_study_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.studies_study_id_seq OWNER TO edge;
+ALTER TABLE studies_study_id_seq OWNER TO edge;
 
 --
 -- Name: studies_study_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -855,14 +902,7 @@ ALTER SEQUENCE studies_study_id_seq OWNED BY studies.study_id;
 
 
 --
--- Name: studies_study_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('studies_study_id_seq', 236, true);
-
-
---
--- Name: transactions; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: transactions; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE transactions (
@@ -874,7 +914,7 @@ CREATE TABLE transactions (
 );
 
 
-ALTER TABLE public.transactions OWNER TO edge;
+ALTER TABLE transactions OWNER TO edge;
 
 --
 -- Name: TABLE transactions; Type: COMMENT; Schema: public; Owner: edge
@@ -903,12 +943,12 @@ Content transfer looks for status 2 and promotes to 3 on exit
 CREATE SEQUENCE transactions_transaction_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.transactions_transaction_id_seq OWNER TO edge;
+ALTER TABLE transactions_transaction_id_seq OWNER TO edge;
 
 --
 -- Name: transactions_transaction_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -918,14 +958,7 @@ ALTER SEQUENCE transactions_transaction_id_seq OWNED BY transactions.transaction
 
 
 --
--- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
---
-
-SELECT pg_catalog.setval('transactions_transaction_id_seq', 16078, true);
-
-
---
--- Name: users; Type: TABLE; Schema: public; Owner: edge; Tablespace: 
+-- Name: users; Type: TABLE; Schema: public; Owner: edge
 --
 
 CREATE TABLE users (
@@ -945,7 +978,7 @@ CREATE TABLE users (
 );
 
 
-ALTER TABLE public.users OWNER TO edge;
+ALTER TABLE users OWNER TO edge;
 
 --
 -- Name: TABLE users; Type: COMMENT; Schema: public; Owner: edge
@@ -961,12 +994,12 @@ COMMENT ON TABLE users IS 'Combined with table Roles, this table defines who can
 CREATE SEQUENCE users_user_id_seq
     START WITH 1
     INCREMENT BY 1
-    NO MAXVALUE
     NO MINVALUE
+    NO MAXVALUE
     CACHE 1;
 
 
-ALTER TABLE public.users_user_id_seq OWNER TO edge;
+ALTER TABLE users_user_id_seq OWNER TO edge;
 
 --
 -- Name: users_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: edge
@@ -976,165 +1009,252 @@ ALTER SEQUENCE users_user_id_seq OWNED BY users.user_id;
 
 
 --
--- Name: users_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+-- Name: v_consented; Type: VIEW; Schema: public; Owner: edge
 --
 
-SELECT pg_catalog.setval('users_user_id_seq', 9, true);
+CREATE VIEW v_consented AS
+ SELECT patients.patient_id,
+    patients.mrn,
+    patients.patient_name,
+    patients.dob,
+    patients.sex,
+    patients.street,
+    patients.city,
+    patients.state,
+    patients.zip_code,
+    patients.email_address,
+    patients.rsna_id,
+    patients.modified_date,
+    patients.consent_timestamp
+   FROM patients
+  WHERE (patients.consent_timestamp IS NOT NULL);
 
+
+ALTER TABLE v_consented OWNER TO edge;
 
 --
 -- Name: v_exam_status; Type: VIEW; Schema: public; Owner: edge
 --
 
 CREATE VIEW v_exam_status AS
-    SELECT p.patient_id, p.mrn, p.patient_name, p.dob, p.sex, p.street, p.city, p.state, p.zip_code, p.email_address, e.exam_id, e.accession_number, e.exam_description, r.report_id, r.status, r.status_timestamp, r.report_text, r.dictator, r.transcriber, r.signer FROM ((patients p JOIN exams e ON ((p.patient_id = e.patient_id))) JOIN (SELECT r1.report_id, r1.exam_id, r1.proc_code, r1.status, r1.status_timestamp, r1.report_text, r1.signer, r1.dictator, r1.transcriber, r1.modified_date FROM reports r1 WHERE (r1.report_id = (SELECT r2.report_id FROM reports r2 WHERE (r2.exam_id = r1.exam_id) ORDER BY status_timestamp DESC, modified_date DESC LIMIT 1))) r ON ((e.exam_id = r.exam_id)));
+ SELECT p.patient_id,
+    p.mrn,
+    p.patient_name,
+    p.dob,
+    p.sex,
+    p.street,
+    p.city,
+    p.state,
+    p.zip_code,
+    p.email_address,
+    e.exam_id,
+    e.accession_number,
+    e.exam_description,
+    r.report_id,
+    r.status,
+    r.status_timestamp,
+    r.report_text,
+    r.dictator,
+    r.transcriber,
+    r.signer
+   FROM ((patients p
+     JOIN exams e ON ((p.patient_id = e.patient_id)))
+     JOIN ( SELECT r1.report_id,
+            r1.exam_id,
+            r1.proc_code,
+            r1.status,
+            r1.status_timestamp,
+            r1.report_text,
+            r1.signer,
+            r1.dictator,
+            r1.transcriber,
+            r1.modified_date
+           FROM reports r1
+          WHERE (r1.report_id = ( SELECT r2.report_id
+                   FROM reports r2
+                  WHERE (r2.exam_id = r1.exam_id)
+                  ORDER BY r2.report_id DESC
+                 LIMIT 1))) r ON ((e.exam_id = r.exam_id)));
 
 
-ALTER TABLE public.v_exam_status OWNER TO edge;
-
---
--- Name: v_job_status; Type: VIEW; Schema: public; Owner: edge
---
-
-CREATE VIEW v_job_status AS
-    SELECT js.job_set_id, j.job_id, j.exam_id, js.delay_in_hrs, t.status, t.status_message, t.modified_date AS last_transaction_timestamp, js.single_use_patient_id, js.email_address, t.comments, js.send_on_complete, j.remaining_retries, js.send_to_site FROM ((jobs j JOIN job_sets js ON ((j.job_set_id = js.job_set_id))) JOIN (SELECT t1.job_id, t1.status_code AS status, sc.description AS status_message, t1.comments, t1.modified_date FROM (transactions t1 JOIN status_codes sc ON ((t1.status_code = sc.status_code))) WHERE (t1.modified_date = (SELECT max(t2.modified_date) AS max FROM transactions t2 WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
-
-
-ALTER TABLE public.v_job_status OWNER TO edge;
-
---
--- Name: v_consented; Type: VIEW; Schema: public; Owner: edge
---
-
-CREATE VIEW v_consented AS
-    SELECT * FROM patients WHERE (patients.consent_timestamp IS NOT NULL);
-
-
-ALTER TABLE public.v_consented OWNER TO edge;
+ALTER TABLE v_exam_status OWNER TO edge;
 
 --
 -- Name: v_exams_sent; Type: VIEW; Schema: public; Owner: edge
 --
 
 CREATE VIEW v_exams_sent AS
-    SELECT * FROM transactions WHERE (transactions.status_code = 40);
+ SELECT transactions.transaction_id,
+    transactions.job_id,
+    transactions.status_code,
+    transactions.comments,
+    transactions.modified_date
+   FROM transactions
+  WHERE (transactions.status_code = 40);
 
 
-ALTER TABLE public.v_exams_sent OWNER TO edge;
+ALTER TABLE v_exams_sent OWNER TO edge;
+
+--
+-- Name: v_job_status; Type: VIEW; Schema: public; Owner: edge
+--
+
+CREATE VIEW v_job_status AS
+ SELECT js.job_set_id,
+    j.job_id,
+    j.exam_id,
+    js.delay_in_hrs,
+    t.status,
+    t.status_message,
+    t.modified_date AS last_transaction_timestamp,
+    js.single_use_patient_id,
+    js.email_address,
+    js.phone_number,
+    t.comments,
+    js.send_on_complete,
+    js.access_code,
+    j.remaining_retries,
+    js.send_to_site
+   FROM ((jobs j
+     JOIN job_sets js ON ((j.job_set_id = js.job_set_id)))
+     JOIN ( SELECT t1.job_id,
+            t1.status_code AS status,
+            sc.description AS status_message,
+            t1.comments,
+            t1.modified_date
+           FROM (transactions t1
+             JOIN status_codes sc ON ((t1.status_code = sc.status_code)))
+          WHERE (t1.modified_date = ( SELECT max(t2.modified_date) AS max
+                   FROM transactions t2
+                  WHERE (t2.job_id = t1.job_id)))) t ON ((j.job_id = t.job_id)));
+
+
+ALTER TABLE v_job_status OWNER TO edge;
 
 --
 -- Name: v_patients_sent; Type: VIEW; Schema: public; Owner: edge
 --
 
 CREATE VIEW v_patients_sent AS
-    SELECT DISTINCT job_sets.patient_id FROM transactions, jobs, job_sets WHERE (((transactions.status_code = 40) AND (transactions.job_id = jobs.job_id)) AND (jobs.job_set_id = job_sets.job_set_id));
+ SELECT DISTINCT job_sets.patient_id
+   FROM transactions,
+    jobs,
+    job_sets
+  WHERE ((transactions.status_code = 40) AND (transactions.job_id = jobs.job_id) AND (jobs.job_set_id = job_sets.job_set_id));
 
 
-ALTER TABLE public.v_patients_sent OWNER TO edge;
+ALTER TABLE v_patients_sent OWNER TO edge;
 
 --
 -- Name: device_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE devices ALTER COLUMN device_id SET DEFAULT nextval('devices_device_id_seq'::regclass);
+ALTER TABLE ONLY devices ALTER COLUMN device_id SET DEFAULT nextval('devices_device_id_seq'::regclass);
 
 
 --
 -- Name: email_job_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE email_jobs ALTER COLUMN email_job_id SET DEFAULT nextval('email_jobs_email_job_id_seq'::regclass);
+ALTER TABLE ONLY email_jobs ALTER COLUMN email_job_id SET DEFAULT nextval('email_jobs_email_job_id_seq'::regclass);
 
 
 --
 -- Name: exam_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE exams ALTER COLUMN exam_id SET DEFAULT nextval('exams_exam_id_seq'::regclass);
+ALTER TABLE ONLY exams ALTER COLUMN exam_id SET DEFAULT nextval('exams_exam_id_seq'::regclass);
 
 
 --
 -- Name: id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE hipaa_audit_accession_numbers ALTER COLUMN id SET DEFAULT nextval('hipaa_audit_accession_numbers_id_seq'::regclass);
+ALTER TABLE ONLY hipaa_audit_accession_numbers ALTER COLUMN id SET DEFAULT nextval('hipaa_audit_accession_numbers_id_seq'::regclass);
 
 
 --
 -- Name: id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE hipaa_audit_mrns ALTER COLUMN id SET DEFAULT nextval('hipaa_audit_mrns_id_seq'::regclass);
+ALTER TABLE ONLY hipaa_audit_mrns ALTER COLUMN id SET DEFAULT nextval('hipaa_audit_mrns_id_seq'::regclass);
 
 
 --
 -- Name: id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE hipaa_audit_views ALTER COLUMN id SET DEFAULT nextval('hipaa_audit_views_id_seq'::regclass);
+ALTER TABLE ONLY hipaa_audit_views ALTER COLUMN id SET DEFAULT nextval('hipaa_audit_views_id_seq'::regclass);
 
 
 --
 -- Name: job_set_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE job_sets ALTER COLUMN job_set_id SET DEFAULT nextval('job_sets_job_set_id_seq'::regclass);
+ALTER TABLE ONLY job_sets ALTER COLUMN job_set_id SET DEFAULT nextval('job_sets_job_set_id_seq'::regclass);
 
 
 --
 -- Name: job_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE jobs ALTER COLUMN job_id SET DEFAULT nextval('jobs_job_id_seq'::regclass);
+ALTER TABLE ONLY jobs ALTER COLUMN job_id SET DEFAULT nextval('jobs_job_id_seq'::regclass);
 
 
 --
 -- Name: event_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE patient_merge_events ALTER COLUMN event_id SET DEFAULT nextval('patient_merge_events_event_id_seq'::regclass);
+ALTER TABLE ONLY patient_merge_events ALTER COLUMN event_id SET DEFAULT nextval('patient_merge_events_event_id_seq'::regclass);
 
 
 --
 -- Name: patient_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE patients ALTER COLUMN patient_id SET DEFAULT nextval('patients_patient_id_seq'::regclass);
+ALTER TABLE ONLY patients ALTER COLUMN patient_id SET DEFAULT nextval('patients_patient_id_seq'::regclass);
 
 
 --
 -- Name: report_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE reports ALTER COLUMN report_id SET DEFAULT nextval('reports_report_id_seq'::regclass);
+ALTER TABLE ONLY reports ALTER COLUMN report_id SET DEFAULT nextval('reports_report_id_seq'::regclass);
 
 
 --
 -- Name: id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE schema_version ALTER COLUMN id SET DEFAULT nextval('schema_version_id_seq'::regclass);
+ALTER TABLE ONLY schema_version ALTER COLUMN id SET DEFAULT nextval('schema_version_id_seq'::regclass);
+
+
+--
+-- Name: sms_job_id; Type: DEFAULT; Schema: public; Owner: edge
+--
+
+ALTER TABLE ONLY sms_jobs ALTER COLUMN sms_job_id SET DEFAULT nextval('sms_jobs_sms_job_id_seq'::regclass);
 
 
 --
 -- Name: study_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE studies ALTER COLUMN study_id SET DEFAULT nextval('studies_study_id_seq'::regclass);
+ALTER TABLE ONLY studies ALTER COLUMN study_id SET DEFAULT nextval('studies_study_id_seq'::regclass);
 
 
 --
 -- Name: transaction_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE transactions ALTER COLUMN transaction_id SET DEFAULT nextval('transactions_transaction_id_seq'::regclass);
+ALTER TABLE ONLY transactions ALTER COLUMN transaction_id SET DEFAULT nextval('transactions_transaction_id_seq'::regclass);
 
 
 --
 -- Name: user_id; Type: DEFAULT; Schema: public; Owner: edge
 --
 
-ALTER TABLE users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::regclass);
+ALTER TABLE ONLY users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_seq'::regclass);
 
 
 --
@@ -1160,11 +1280,11 @@ fail-on-incomplete-study	false	2013-03-04 14:57:33.549-06
 retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
 search-patient-lastname	false	2014-02-21 12:05:05.933-06
 secondary-capture-report-enabled	true	2014-02-21 12:05:05.933-06
-scp-idle-timeout	60000	2014-06-18 12:05:05.933-06
-submit-stats	false	2014-10-16 14:58:33.549-06
-scp-max-send-pdu-length	16364	2015-03-20 12:00:05.933-06
-scp-max-receive-pdu-length	16364	2015-03-20 12:00:05.933-06
-site_id	TBD	2015-03-31 16:35:16.668828-06
+scp-idle-timeout	60000	2014-06-18 13:05:05.933-05
+submit-stats	false	2014-10-16 15:58:33.549-05
+scp-max-send-pdu-length	16364	2015-03-20 13:00:05.933-05
+scp-max-receive-pdu-length	16364	2015-03-20 13:00:05.933-05
+site_id	TBD	2015-03-31 17:35:16.668828-05
 \.
 
 
@@ -1174,6 +1294,13 @@ site_id	TBD	2015-03-31 16:35:16.668828-06
 
 COPY devices (device_id, ae_title, host, port_number, modified_date) FROM stdin;
 \.
+
+
+--
+-- Name: devices_device_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('devices_device_id_seq', 1, true);
 
 
 --
@@ -1190,10 +1317,10 @@ username		2014-02-21 12:05:05.933-06
 password		2014-02-21 12:05:05.933-06
 bounce_email		2014-02-21 12:05:05.933-06
 reply_to_email		2014-02-21 12:05:05.933-06
+patient_email_subject	Your imaging records are ready for viewing	2017-02-15 10:25:07.454622-06
+error_email_body	The following job failed to send to the clearinghouse:\r\n\r\nName: $patientname$\r\nAccession: $accession$\r\nJob ID: $jobid$\r\nStatus: $jobstatus$ ($jobstatuscode$)\r\nError Detail:\r\n\r\n$errormsg$	2017-02-15 10:25:07.457623-06
+patient_email_body	<b><font size="24">RSNA Image Share</font></b><br><b><i><font size="5">Take Control of Your Medical Images</font></i></b></h2><br><br><br>Dear $patientname$,<br><br>Welcome to Image Share, a network designed to enable patients to access and control their medical imaging results. Image Share was developed by the Radiological Society of North America (RSNA) and its partners, with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>You are receiving this message because the radiology staff at $site_id$ have sent your imaging results to a secure online data repository so you can access them.<br><br>To access your images:<br><br><ol><li><b>Create a personal health record (PHR) account on one of the participating image-enabled PHR systems.</b> If you created an account following an earlier visit, simply log in. You can create an account on one of the following participating sites:<br><br><ul><li>DICOM Grid:<a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a></li><li>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a></li></ul><br><br>Each of these sites provides detailed instructions on creating an account and using it to retrieve your imaging results. Be careful to record your PHR account log in information (PHR provider, user name and password) and keep it secure, as you do with all your valuable online information.</li><br><br><li><b>Use your PHR account to access and take control of your imaging results.</b> Once you’ve created an account, you’ll just need to log in and provide two pieces of information to access your images and reports:<br><br>Your Access Code: <b>$accesscode$</b><br>Your date of birth<br><br>That’s all you need to retrieve the images and report into your PHR account. You can then use your PHR account to share information with others you trust, including care providers. They can view the images and the report anywhere Internet access is available. Some PHRs enable you to email a link to your images, so a provider can view your examinations without you needing to be present.</li></ol><br><br>User support is available during business hours at <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).	2017-02-15 10:25:24.959373-06
 \.
-insert into email_configurations values('patient_email_subject','Your imaging records are ready for viewing');
-insert into email_configurations values('patient_email_body','Dear $patientname$,<br><br>Your imaging records from $site_id$ are ready for you to pick up online.<br><br> You will need to move them into your Personal Health Record (PHR) account to access your results. If you have not already done so, you can create a PHR account for this purpose using any of the services linked below.<br><br>DICOM Grid: <a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a><br>itMD: <a href="http://share.itMD.net/claim">http://share.itMD.net/claim</a><br>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a><br><br>These PHR systems provide more detailed instructions about how to set up an account and access your images.  If you wish you can choose to try more than one- they’re free.<br><br>General instructions and further information about the Image Share network are available at <a href="http://www.rsna.org/Image_Share.aspx">http://www.rsna.org/Image_Share.aspx</a>. Help and technical support are available during business hours at  <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).<br><br>We hope you find this service helpful and convenient.<br><br>RSNA Image Share was developed by RSNA and its partners with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>Thank you for using RSNA Image Share!');
-insert into email_configurations values('error_email_body','The following job failed to send to the clearinghouse:\r\n\r\nName: $patientname$\r\nAccession: $accession$\r\nJob ID: $jobid$\r\nStatus: $jobstatus$ ($jobstatuscode$)\r\nError Detail:\r\n\r\n$errormsg$');
 
 
 --
@@ -1205,11 +1332,25 @@ COPY email_jobs (email_job_id, recipient, subject, body, sent, failed, comments,
 
 
 --
+-- Name: email_jobs_email_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('email_jobs_email_job_id_seq', 1, false);
+
+
+--
 -- Data for Name: exams; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY exams (exam_id, accession_number, patient_id, exam_description, modified_date) FROM stdin;
 \.
+
+
+--
+-- Name: exams_exam_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('exams_exam_id_seq', 101, true);
 
 
 --
@@ -1221,11 +1362,25 @@ COPY hipaa_audit_accession_numbers (id, view_id, accession_number, modified_date
 
 
 --
+-- Name: hipaa_audit_accession_numbers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('hipaa_audit_accession_numbers_id_seq', 388, true);
+
+
+--
 -- Data for Name: hipaa_audit_mrns; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY hipaa_audit_mrns (id, view_id, mrn, modified_date) FROM stdin;
 \.
+
+
+--
+-- Name: hipaa_audit_mrns_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('hipaa_audit_mrns_id_seq', 2220, true);
 
 
 --
@@ -1237,11 +1392,25 @@ COPY hipaa_audit_views (id, requesting_ip, requesting_username, requesting_uri, 
 
 
 --
+-- Name: hipaa_audit_views_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1662, true);
+
+
+--
 -- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete, access_code, send_to_site) FROM stdin;
+COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete, access_code, send_to_site, phone_number) FROM stdin;
 \.
+
+
+--
+-- Name: job_sets_job_set_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('job_sets_job_set_id_seq', 112, true);
 
 
 --
@@ -1253,6 +1422,13 @@ COPY jobs (job_id, job_set_id, exam_id, report_id, document_id, remaining_retrie
 
 
 --
+-- Name: jobs_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('jobs_job_id_seq', 114, true);
+
+
+--
 -- Data for Name: patient_merge_events; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
@@ -1261,11 +1437,25 @@ COPY patient_merge_events (event_id, old_mrn, new_mrn, old_patient_id, new_patie
 
 
 --
+-- Name: patient_merge_events_event_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('patient_merge_events_event_id_seq', 1, false);
+
+
+--
 -- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, email_address, rsna_id, modified_date, consent_timestamp) FROM stdin;
+COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip_code, email_address, rsna_id, modified_date, consent_timestamp, autosend) FROM stdin;
 \.
+
+
+--
+-- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('patients_patient_id_seq', 90, true);
 
 
 --
@@ -1274,6 +1464,13 @@ COPY patients (patient_id, mrn, patient_name, dob, sex, street, city, state, zip
 
 COPY reports (report_id, exam_id, proc_code, status, status_timestamp, report_text, signer, dictator, transcriber, modified_date) FROM stdin;
 \.
+
+
+--
+-- Name: reports_report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('reports_report_id_seq', 186, true);
 
 
 --
@@ -1289,8 +1486,43 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
-0	4.0.0	2016-02-25 12:05:05.933-06
+0	5.0.0	2017-02-15 10:25:24.959373-06
 \.
+
+
+--
+-- Name: schema_version_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
+
+
+--
+-- Data for Name: sms_configurations; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY sms_configurations (key, value, modified_date) FROM stdin;
+enable_sms	false	2017-02-15 10:25:24.959373-06
+account_id		2017-02-15 10:25:24.959373-06
+token		2017-02-15 10:25:24.959373-06
+sender		2017-02-15 10:25:24.959373-06
+body	Your imaging results are ready to be accessed. Your Access Code is $accesscode$. Instructions available at http://www.rsna.org/image_share.aspx.	2017-02-15 10:25:24.959373-06
+\.
+
+
+--
+-- Data for Name: sms_jobs; Type: TABLE DATA; Schema: public; Owner: edge
+--
+
+COPY sms_jobs (sms_job_id, recipient, message, sent, failed, comments, created_date, modified_date) FROM stdin;
+\.
+
+
+--
+-- Name: sms_jobs_sms_job_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('sms_jobs_sms_job_id_seq', 1, false);
 
 
 --
@@ -1317,6 +1549,7 @@ COPY status_codes (status_code, description, modified_date) FROM stdin;
 -33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05
 -34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05
 -24	Exam has been canceled	2014-09-03 15:41:37.99-05
+-1	No devices found	2017-02-15 10:25:24.959373-06
 \.
 
 
@@ -1329,6 +1562,13 @@ COPY studies (study_id, study_uid, exam_id, study_description, study_date, modif
 
 
 --
+-- Name: studies_study_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('studies_study_id_seq', 236, true);
+
+
+--
 -- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
@@ -1337,15 +1577,30 @@ COPY transactions (transaction_id, job_id, status_code, comments, modified_date)
 
 
 --
+-- Name: transactions_transaction_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('transactions_transaction_id_seq', 16078, true);
+
+
+--
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
 COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date, active) FROM stdin;
+10	AUTOSEND	System AutoSend	\N	\N	\N	\N	\N	\N	\N	0	2017-02-15 10:25:24.959373-06	t
 \.
 
 
 --
--- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: users_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: edge
+--
+
+SELECT pg_catalog.setval('users_user_id_seq', 10, true);
+
+
+--
+-- Name: pk_device_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY devices
@@ -1353,7 +1608,7 @@ ALTER TABLE ONLY devices
 
 
 --
--- Name: pk_email_configuration_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_email_configuration_key; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY email_configurations
@@ -1361,7 +1616,7 @@ ALTER TABLE ONLY email_configurations
 
 
 --
--- Name: pk_email_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_email_job_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY email_jobs
@@ -1369,7 +1624,7 @@ ALTER TABLE ONLY email_jobs
 
 
 --
--- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_event_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY patient_merge_events
@@ -1377,7 +1632,7 @@ ALTER TABLE ONLY patient_merge_events
 
 
 --
--- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_exam_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY exams
@@ -1385,7 +1640,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_hipaa_audit_accession_number_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY hipaa_audit_accession_numbers
@@ -1393,7 +1648,7 @@ ALTER TABLE ONLY hipaa_audit_accession_numbers
 
 
 --
--- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_hipaa_audit_mrn_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY hipaa_audit_mrns
@@ -1401,7 +1656,7 @@ ALTER TABLE ONLY hipaa_audit_mrns
 
 
 --
--- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_hipaa_audit_view_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY hipaa_audit_views
@@ -1409,7 +1664,7 @@ ALTER TABLE ONLY hipaa_audit_views
 
 
 --
--- Name: pk_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY schema_version
@@ -1417,7 +1672,7 @@ ALTER TABLE ONLY schema_version
 
 
 --
--- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_job_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY jobs
@@ -1425,7 +1680,7 @@ ALTER TABLE ONLY jobs
 
 
 --
--- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_job_set_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY job_sets
@@ -1433,7 +1688,7 @@ ALTER TABLE ONLY job_sets
 
 
 --
--- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_key; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY configurations
@@ -1441,7 +1696,7 @@ ALTER TABLE ONLY configurations
 
 
 --
--- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_patient_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY patients
@@ -1449,7 +1704,7 @@ ALTER TABLE ONLY patients
 
 
 --
--- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_report_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY reports
@@ -1457,7 +1712,7 @@ ALTER TABLE ONLY reports
 
 
 --
--- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_role_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY roles
@@ -1465,7 +1720,23 @@ ALTER TABLE ONLY roles
 
 
 --
--- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_sms_configuration_key; Type: CONSTRAINT; Schema: public; Owner: edge
+--
+
+ALTER TABLE ONLY sms_configurations
+    ADD CONSTRAINT pk_sms_configuration_key PRIMARY KEY (key);
+
+
+--
+-- Name: pk_sms_job_id; Type: CONSTRAINT; Schema: public; Owner: edge
+--
+
+ALTER TABLE ONLY sms_jobs
+    ADD CONSTRAINT pk_sms_job_id PRIMARY KEY (sms_job_id);
+
+
+--
+-- Name: pk_status_code; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY status_codes
@@ -1473,7 +1744,7 @@ ALTER TABLE ONLY status_codes
 
 
 --
--- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_study_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY studies
@@ -1481,7 +1752,7 @@ ALTER TABLE ONLY studies
 
 
 --
--- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_transaction_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY transactions
@@ -1489,7 +1760,7 @@ ALTER TABLE ONLY transactions
 
 
 --
--- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: pk_user_id; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY users
@@ -1497,7 +1768,7 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: uq_exam; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY exams
@@ -1505,7 +1776,7 @@ ALTER TABLE ONLY exams
 
 
 --
--- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge; Tablespace: 
+-- Name: uq_login; Type: CONSTRAINT; Schema: public; Owner: edge
 --
 
 ALTER TABLE ONLY users
@@ -1513,52 +1784,80 @@ ALTER TABLE ONLY users
 
 
 --
--- Name: exams_accession_number_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: exams_accession_number_idx; Type: INDEX; Schema: public; Owner: edge
 --
 
 CREATE INDEX exams_accession_number_idx ON exams USING btree (accession_number);
 
 
 --
--- Name: patients_dob_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: jobs_job_set_id; Type: INDEX; Schema: public; Owner: edge
+--
+
+CREATE INDEX jobs_job_set_id ON jobs USING btree (job_set_id);
+
+
+--
+-- Name: patients_dob_idx; Type: INDEX; Schema: public; Owner: edge
 --
 
 CREATE INDEX patients_dob_idx ON patients USING btree (dob);
 
 
 --
--- Name: patients_mrn_ix; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: patients_mrn_ix; Type: INDEX; Schema: public; Owner: edge
 --
 
 CREATE UNIQUE INDEX patients_mrn_ix ON patients USING btree (mrn);
 
 
 --
--- Name: patients_patient_name_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: patients_patient_name_idx; Type: INDEX; Schema: public; Owner: edge
 --
 
 CREATE INDEX patients_patient_name_idx ON patients USING btree (patient_name);
 
 
 --
--- Name: reports_status_timestamp_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: reports_status_timestamp_idx; Type: INDEX; Schema: public; Owner: edge
 --
 
 CREATE INDEX reports_status_timestamp_idx ON reports USING btree (status_timestamp);
 
-CREATE INDEX jobs_job_set_id ON jobs USING btree (job_set_id);
-
-CREATE INDEX transactions_status_code_idx ON transactions USING btree (status_code);
-
-CREATE INDEX transactions_job_id ON transactions USING btree (job_id);
-
-CREATE INDEX transactions_modified_date ON transactions USING btree (modified_date);
 
 --
--- Name: reports_unique_status_idx; Type: INDEX; Schema: public; Owner: edge; Tablespace: 
+-- Name: reports_unique_status_idx; Type: INDEX; Schema: public; Owner: edge
 --
 
 CREATE UNIQUE INDEX reports_unique_status_idx ON reports USING btree (exam_id, status, status_timestamp);
+
+
+--
+-- Name: transactions_job_id; Type: INDEX; Schema: public; Owner: edge
+--
+
+CREATE INDEX transactions_job_id ON transactions USING btree (job_id);
+
+
+--
+-- Name: transactions_modified_date; Type: INDEX; Schema: public; Owner: edge
+--
+
+CREATE INDEX transactions_modified_date ON transactions USING btree (modified_date);
+
+
+--
+-- Name: transactions_status_code_idx; Type: INDEX; Schema: public; Owner: edge
+--
+
+CREATE INDEX transactions_status_code_idx ON transactions USING btree (status_code);
+
+
+--
+-- Name: trigger_exam_autosend; Type: TRIGGER; Schema: public; Owner: edge
+--
+
+CREATE TRIGGER trigger_exam_autosend AFTER INSERT ON exams FOR EACH ROW EXECUTE PROCEDURE fn_exam_autosend();
 
 
 --
