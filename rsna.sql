@@ -23,7 +23,6 @@ CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 
 -- For Windows system
 -- CREATE DATABASE rsnadb WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
 
-
 ALTER DATABASE rsnadb OWNER TO edge;
 
 \connect rsnadb
@@ -98,35 +97,34 @@ DECLARE
 	v_user_id integer;
 	v_job_set_id integer;
 	v_job_id integer;
-    BEGIN
-        -- the exam belongs to patient with autosend flag is true
-        IF (SELECT autosend FROM patients WHERE patient_id=NEW.patient_id) THEN
-            SELECT email_address,single_use_patient_id,access_code 
-				INTO v_email_address,v_single_use_patient_id,v_access_code
-			FROM job_sets
-			WHERE patient_id = NEW.patient_id
-			ORDER BY modified_date DESC
-			FETCH FIRST 1 ROW ONLY;
+BEGIN
+	-- the exam belongs to patient with autosend flag is true
+	IF (SELECT autosend FROM patients WHERE patient_id=NEW.patient_id) THEN
+		SELECT email_address,single_use_patient_id,access_code
+		INTO v_email_address,v_single_use_patient_id,v_access_code
+		FROM job_sets
+		WHERE patient_id = NEW.patient_id
+		ORDER BY modified_date DESC
+		FETCH FIRST 1 ROW ONLY;
 
-			IF v_single_use_patient_id IS NOT NULL THEN
-				SELECT value INTO v_max_retries FROM configurations WHERE key='max-retries';
+		IF v_single_use_patient_id IS NOT NULL THEN
+			SELECT value INTO v_max_retries FROM configurations WHERE key='max-retries';
+			SELECT user_id INTO v_user_id FROM users WHERE user_login='AUTOSEND';
 
-				SELECT user_id INTO v_user_id FROM users WHERE user_login='AUTOSEND';
+			INSERT INTO job_sets (patient_id,user_id,email_address,single_use_patient_id,access_code)
+			VALUES (NEW.patient_id,v_user_id,v_email_address,v_single_use_patient_id,v_access_code)
+			RETURNING job_set_id INTO v_job_set_id;
 
-				INSERT INTO job_sets (patient_id,user_id,email_address,single_use_patient_id,access_code)
-				VALUES (NEW.patient_id,v_user_id,v_email_address,v_single_use_patient_id,v_access_code)
-				RETURNING job_set_id INTO v_job_set_id;
+			INSERT INTO jobs (job_set_id,exam_id,remaining_retries)
+			VALUES (v_job_set_id,NEW.exam_id,v_max_retries)
+			RETURNING job_id INTO v_job_id;
 
-				INSERT INTO jobs (job_set_id,exam_id,remaining_retries)
-				VALUES (v_job_set_id,NEW.exam_id,v_max_retries)
-				RETURNING job_id INTO v_job_id;
-
-				INSERT INTO transactions (job_id,status_code,comments)
-				VALUES (v_job_id,1,'Queued');
-			END IF;
-        END IF;
-        RETURN NEW;
-    END;
+			INSERT INTO transactions (job_id,status_code,comments)
+			VALUES (v_job_id,1,'Queued');
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
 $$;
 
 
@@ -464,7 +462,8 @@ CREATE TABLE job_sets (
     send_on_complete boolean DEFAULT false NOT NULL,
     access_code character varying(64),
     send_to_site boolean DEFAULT false NOT NULL,
-    phone_number character varying(20)
+    phone_number character varying(20),
+    global_id character varying(64)
 );
 
 
@@ -1285,6 +1284,7 @@ submit-stats	false	2014-10-16 15:58:33.549-05
 scp-max-send-pdu-length	16364	2015-03-20 13:00:05.933-05
 scp-max-receive-pdu-length	16364	2015-03-20 13:00:05.933-05
 site_id	TBD	2015-03-31 17:35:16.668828-05
+pdf-template	false	2017-04-03 13:04:01.177535-05
 \.
 
 
@@ -1317,9 +1317,9 @@ username		2014-02-21 12:05:05.933-06
 password		2014-02-21 12:05:05.933-06
 bounce_email		2014-02-21 12:05:05.933-06
 reply_to_email		2014-02-21 12:05:05.933-06
-patient_email_subject	Your imaging records are ready for viewing	2017-02-15 10:25:07.454622-06
-error_email_body	The following job failed to send to the clearinghouse:\r\n\r\nName: $patientname$\r\nAccession: $accession$\r\nJob ID: $jobid$\r\nStatus: $jobstatus$ ($jobstatuscode$)\r\nError Detail:\r\n\r\n$errormsg$	2017-02-15 10:25:07.457623-06
-patient_email_body	<b><font size="24">RSNA Image Share</font></b><br><b><i><font size="5">Take Control of Your Medical Images</font></i></b></h2><br><br><br>Dear $patientname$,<br><br>Welcome to Image Share, a network designed to enable patients to access and control their medical imaging results. Image Share was developed by the Radiological Society of North America (RSNA) and its partners, with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>You are receiving this message because the radiology staff at $site_id$ have sent your imaging results to a secure online data repository so you can access them.<br><br>To access your images:<br><br><ol><li><b>Create a personal health record (PHR) account on one of the participating image-enabled PHR systems.</b> If you created an account following an earlier visit, simply log in. You can create an account on one of the following participating sites:<br><br><ul><li>DICOM Grid:<a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a></li><li>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a></li></ul><br><br>Each of these sites provides detailed instructions on creating an account and using it to retrieve your imaging results. Be careful to record your PHR account log in information (PHR provider, user name and password) and keep it secure, as you do with all your valuable online information.</li><br><br><li><b>Use your PHR account to access and take control of your imaging results.</b> Once you’ve created an account, you’ll just need to log in and provide two pieces of information to access your images and reports:<br><br>Your Access Code: <b>$accesscode$</b><br>Your date of birth<br><br>That’s all you need to retrieve the images and report into your PHR account. You can then use your PHR account to share information with others you trust, including care providers. They can view the images and the report anywhere Internet access is available. Some PHRs enable you to email a link to your images, so a provider can view your examinations without you needing to be present.</li></ol><br><br>User support is available during business hours at <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).	2017-02-15 10:25:24.959373-06
+patient_email_subject	Your imaging records are ready for viewing	2017-04-03 12:17:43.758298-05
+error_email_body	The following job failed to send to the clearinghouse:\r\n\r\nName: $patientname$\r\nAccession: $accession$\r\nJob ID: $jobid$\r\nStatus: $jobstatus$ ($jobstatuscode$)\r\nError Detail:\r\n\r\n$errormsg$	2017-04-03 12:17:43.758298-05
+patient_email_body	<b><font size="24">RSNA Image Share</font></b><br><b><i><font size="5">Take Control of Your Medical Images</font></i></b></h2><br><br><br>Dear $patientname$,<br><br>Welcome to Image Share, a network designed to enable patients to access and control their medical imaging results. Image Share was developed by the Radiological Society of North America (RSNA) and its partners, with funding from the National Institute of Biomedical Imaging and Bioengineering.<br><br>You are receiving this message because the radiology staff at $site_id$ have sent your imaging results to a secure online data repository so you can access them.<br><br>To access your images:<br><br><ol><li><b>Create a personal health record (PHR) account on one of the participating image-enabled PHR systems.</b> If you created an account following an earlier visit, simply log in. You can create an account on one of the following participating sites:<br><br><ul><li>DICOM Grid:<a href="http://imageshare.dicomgrid.com">http://imageshare.dicomgrid.com</a></li><li>lifeIMAGE: <a href="https://cloud.lifeimage.com/rsna/phr">https://cloud.lifeimage.com/rsna/phr</a></li></ul><br><br>Each of these sites provides detailed instructions on creating an account and using it to retrieve your imaging results. Be careful to record your PHR account log in information (PHR provider, user name and password) and keep it secure, as you do with all your valuable online information.</li><br><br><li><b>Use your PHR account to access and take control of your imaging results.</b> Once you’ve created an account, you’ll just need to log in and provide two pieces of information to access your images and reports:<br><br>Your Access Code: <b>$accesscode$</b><br>Your date of birth<br><br>That’s all you need to retrieve the images and report into your PHR account. You can then use your PHR account to share information with others you trust, including care providers. They can view the images and the report anywhere Internet access is available. Some PHRs enable you to email a link to your images, so a provider can view your examinations without you needing to be present.</li></ol><br><br>User support is available during business hours at <a href="mailto:helpdesk@imsharing.org">helpdesk@imsharing.org</a> | Toll-free: 1-855-IM-SHARING (467-4274).	2017-04-03 12:19:09.864251-05
 \.
 
 
@@ -1402,7 +1402,7 @@ SELECT pg_catalog.setval('hipaa_audit_views_id_seq', 1662, true);
 -- Data for Name: job_sets; Type: TABLE DATA; Schema: public; Owner: edge
 --
 
-COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete, access_code, send_to_site, phone_number) FROM stdin;
+COPY job_sets (job_set_id, patient_id, user_id, email_address, modified_date, delay_in_hrs, single_use_patient_id, send_on_complete, access_code, send_to_site, phone_number, global_id) FROM stdin;
 \.
 
 
@@ -1486,7 +1486,7 @@ COPY roles (role_id, role_description, modified_date) FROM stdin;
 --
 
 COPY schema_version (id, version, modified_date) FROM stdin;
-0	5.0.0	2017-02-15 10:25:24.959373-06
+0	5.0.0	2017-04-03 12:19:09.864251-05
 \.
 
 
@@ -1502,11 +1502,14 @@ SELECT pg_catalog.setval('schema_version_id_seq', 1, false);
 --
 
 COPY sms_configurations (key, value, modified_date) FROM stdin;
-enable_sms	false	2017-02-15 10:25:24.959373-06
-account_id		2017-02-15 10:25:24.959373-06
-token		2017-02-15 10:25:24.959373-06
-sender		2017-02-15 10:25:24.959373-06
-body	Your imaging results are ready to be accessed. Your Access Code is $accesscode$. Instructions available at http://www.rsna.org/image_share.aspx.	2017-02-15 10:25:24.959373-06
+enable_sms	false	2017-04-03 12:19:09.864251-05
+account_id		2017-04-03 12:19:09.864251-05
+token		2017-04-03 12:19:09.864251-05
+sender		2017-04-03 12:19:09.864251-05
+body	Your imaging results are ready to be accessed. Your Access Code is $accesscode$. Instructions available at http://www.rsna.org/image_share.aspx.	2017-04-03 12:19:09.864251-05
+proxy_host	192.203.117.40	2017-04-03 12:19:09.864251-05
+proxy_port	3128	2017-04-03 12:19:09.864251-05
+proxy_set	false	2017-04-03 12:19:09.864251-05
 \.
 
 
@@ -1536,20 +1539,20 @@ COPY status_codes (status_code, description, modified_date) FROM stdin;
 30	Waiting to start transfer to clearinghouse	2010-10-22 11:59:15.243445-05
 22	Waiting for job delay to expire	2010-10-22 11:59:15.243445-05
 24	Waiting for exam completion	2013-02-26 14:57:33.549-06
-32	Started KOS generation	2010-10-22 09:58:07.496506-05
-33	Started patient registration	2010-10-22 09:58:07.496506-05
 34	Started document submission	2010-10-22 09:58:07.496506-05
 40	Completed transfer to clearinghouse	2010-10-22 09:58:07.496506-05
 1	Waiting to retrieve images and report	2010-10-22 09:58:07.496506-05
 -23	DICOM C-MOVE failed	2010-10-22 11:59:15.243445-05
 -21	Unable to find images	2010-10-22 11:59:15.243445-05
--32	Failed to generate KOS	2010-11-02 09:39:45.53873-05
 -30	Failed to transfer to clearinghouse	2010-11-02 09:39:24.901369-05
 -20	Failed to prepare content	2010-10-22 09:58:07.496506-05
--33	Failed to register patient with clearinghouse	2010-11-02 09:40:11.789371-05
 -34	Failed to submit documents to clearinghouse	2010-11-02 09:40:28.488821-05
 -24	Exam has been canceled	2014-09-03 15:41:37.99-05
--1	No devices found	2017-02-15 10:25:24.959373-06
+-1	No devices found	2017-04-03 12:19:09.864251-05
+32	Started patient registration	2017-04-03 12:19:09.864251-05
+33	Retrieving global id	2017-04-03 12:19:09.864251-05
+-32	Failed to register patient with clearinghouse	2017-04-03 12:19:09.864251-05
+-33	Failed to retrieve global id	2017-04-03 12:19:09.864251-05
 \.
 
 
@@ -1588,7 +1591,7 @@ SELECT pg_catalog.setval('transactions_transaction_id_seq', 16078, true);
 --
 
 COPY users (user_id, user_login, user_name, email, crypted_password, salt, created_at, updated_at, remember_token, remember_token_expires_at, role_id, modified_date, active) FROM stdin;
-10	AUTOSEND	System AutoSend	\N	\N	\N	\N	\N	\N	\N	0	2017-02-15 10:25:24.959373-06	t
+10	AUTOSEND	System AutoSend	\N	\N	\N	\N	\N	\N	\N	0	2017-04-03 12:19:09.864251-05	t
 \.
 
 
@@ -1795,6 +1798,13 @@ CREATE INDEX exams_accession_number_idx ON exams USING btree (accession_number);
 --
 
 CREATE INDEX jobs_job_set_id ON jobs USING btree (job_set_id);
+
+
+--
+-- Name: patient_search_idx; Type: INDEX; Schema: public; Owner: edge
+--
+
+CREATE INDEX patient_search_idx ON patients USING gin (to_tsvector('simple'::regconfig, ((((((ltrim((mrn)::text, '0'::text) || ' '::text) || (COALESCE(patient_name, ''::character varying))::text) || ' '::text) || COALESCE((date_part('year'::text, dob))::text, ''::text)) || ' '::text) || (COALESCE(email_address, ''::character varying))::text)));
 
 
 --
