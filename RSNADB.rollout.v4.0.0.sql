@@ -1,4 +1,10 @@
-UPDATE schema_version SET version='4.0.0', modified_date=now();
+DO language plpgsql $$
+BEGIN
+IF (SELECT count(*) from schema_version) > 0 THEN
+  UPDATE schema_version SET version='4.0.0', modified_date=now();
+ELSE
+  INSERT INTO schema_version (version, modified_date) values ('4.0.0', now());
+END IF;
 -- latest exam status decided by report_id which is the order of when the event was inserted
 -- instead of status_timestamp to handle rescheduled exams
 DROP VIEW v_exam_status;
@@ -14,3 +20,6 @@ r.status_timestamp, r.report_text, r.dictator, r.transcriber, r.signer
 ) r ON e.exam_id = r.exam_id;
 
 ALTER TABLE v_exam_status OWNER TO edge;
+
+END;
+$$
