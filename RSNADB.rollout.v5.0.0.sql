@@ -1,4 +1,11 @@
-UPDATE schema_version SET version='5.0.0', modified_date=now();
+DO language plpgsql $$
+BEGIN
+
+IF (select count(*) from schema_version) > 0 THEN
+  UPDATE schema_version SET version='5.0.0', modified_date=now();
+ELSE
+  INSERT INTO schema_version(version, modified_date) values('5.0.0', now());
+END IF;
 
 ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
 ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
@@ -145,3 +152,6 @@ UPDATE status_codes set description = 'Failed to retrieve global id', modified_d
 
 --Add Pateint search index
 create index patient_search_idx on patients using gin(to_tsvector('simple', trim(leading '0' from mrn) || ' ' || coalesce(patient_name,'') || ' ' || coalesce(extract(year from dob)::text,'') || ' ' || coalesce(email_address, '')));
+
+END;
+$$
