@@ -11,8 +11,10 @@ ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
 ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
---Add pdf-template key to configurations
+--Configurations table
 INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
+INSERT INTO configurations (key,value) VALUES ('rsna-isn-assigning-authority','1.3.6.1.4.1.19376.3.840.1.1.1');
+UPDATE configurations SET key = 'iti9-pix-uri' WHERE key = 'iti8-pix-uri';
 
 INSERT INTO public.users (user_login, user_name,role_id)
 SELECT 'AUTOSEND','System AutoSend',0
