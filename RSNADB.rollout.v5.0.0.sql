@@ -15,7 +15,9 @@ ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 --Configurations table
 INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
 INSERT INTO configurations (key,value) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.19376.3.840.1.1.1');
+INSERT INTO configurations (key,value) VALUES ('iti41-doc-endpoint-uri','https://clearinghouse.lifeimage.com/services/xdsrepositoryb');
 UPDATE configurations SET key = 'iti9-pix-uri' WHERE key = 'iti8-pix-uri';
+UPDATE configurations SET key = 'iti41-img-endpoint-uri' WHERE key = 'iti41-endpoint-uri';
 
 INSERT INTO public.users (user_login, user_name,role_id)
 SELECT 'AUTOSEND','System AutoSend',0
