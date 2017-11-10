@@ -1261,11 +1261,12 @@ ALTER TABLE ONLY users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_s
 --
 
 COPY configurations (key, value, modified_date) FROM stdin;
-iti41-source-id	1.3.6.1.4.1.19376.2.840.1.1.2.1	2010-12-20 13:17:12.478876-06
-iti8-pix-uri	mllps://clearinghouse.lifeimage.com:8888	2011-03-14 20:37:44.484487-05
-iti8-reg-uri	mllps://clearinghouse.lifeimage.com:8890	2011-03-14 20:38:09.214142-05
-iti41-endpoint-uri-test	https://localhost:9443/	2011-02-03 19:10:33.864317-06
-iti41-endpoint-uri	https://clearinghouse.lifeimage.com/services/xdsrepositoryb	2011-03-14 20:41:19.216294-05
+iti41-source-id	1.3.6.1.4.1.21367	2017-11-03 13:17:12.478876-06
+rsna-assigning-authority	1.3.6.1.4.1.21367.13.20.3000	2017-11-03 13:17:12.478876-06
+iti41-doc-endpoint-uri	http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
+iti41-img-endpoint-uri	http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
+iti8-reg-uri	mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600	2017-11-03 13:17:12.478876-06
+iti9-pix-uri	mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600	2017-11-03 13:17:12.478876-06
 iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
 scp-ae-title	RSNA-ISN	2011-01-10 18:35:16.668828-06
 scu-ae-title	RSNA-ISN	2011-01-10 18:43:13.369949-06

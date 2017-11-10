@@ -27,8 +27,17 @@ ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
 ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
---Add pdf-template key to configurations
+--Update configurations
+UPDATE configurations SET value='1.3.6.1.4.1.21367' WHERE key='iti41-source-id';
+UPDATE configurations SET value='mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600' WHERE key='iti8-reg-uri';
 INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
+INSERT INTO configurations (key,value) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.21367.13.20.3000');
+INSERT INTO configurations (key,value) VALUES ('iti41-doc-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
+INSERT INTO configurations (key,value) VALUES ('iti41-img-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
+INSERT INTO configurations (key,value) VALUES ('iti9-pix-uri','mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600');
+DELETE FROM configurations WHERE key='iti8-pix-uri';
+DELETE FROM configurations WHERE key='iti41-endpoint-uri-test';
+DELETE FROM configurations WHERE key='iti41-endpoint-uri';
 
 INSERT INTO public.users (user_login, user_name,role_id)
 SELECT 'AUTOSEND','System AutoSend',0
