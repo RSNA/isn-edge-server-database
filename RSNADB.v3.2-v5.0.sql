@@ -30,6 +30,8 @@ ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 --Update configurations
 UPDATE configurations SET value='1.3.6.1.4.1.21367' WHERE key='iti41-source-id';
 UPDATE configurations SET value='mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600' WHERE key='iti8-reg-uri';
+INSERT INTO configurations (key,value) VALUES ('scp-max-send-pdu-length','16364');
+INSERT INTO configurations (key,value) VALUES ('scp-max-receive-pdu-length','16364');
 INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
 INSERT INTO configurations (key,value) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.21367.13.20.3000');
 INSERT INTO configurations (key,value) VALUES ('iti41-doc-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
