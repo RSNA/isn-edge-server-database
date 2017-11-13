@@ -1261,31 +1261,32 @@ ALTER TABLE ONLY users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_s
 --
 
 COPY configurations (key, value, modified_date) FROM stdin;
-iti41-source-id	1.3.6.1.4.1.21367	2017-11-03 13:17:12.478876-06
-rsna-assigning-authority	1.3.6.1.4.1.21367.13.20.3000	2017-11-03 13:17:12.478876-06
+consent-expired-days	90	2012-03-13 15:56:06.768-05
+fail-on-incomplete-study	false	2013-03-04 14:57:33.549-06
 iti41-doc-endpoint-uri	http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
 iti41-img-endpoint-uri	http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
+iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
+iti41-source-id	1.3.6.1.4.1.21367	2017-11-03 13:17:12.478876-06
 iti8-reg-uri	mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600	2017-11-03 13:17:12.478876-06
 iti9-pix-uri	mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600	2017-11-03 13:17:12.478876-06
-iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
+max-retries	10	2013-02-26 14:57:33.549-06
+pdf-template	false	2017-04-03 13:04:01.177535-05
+retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
+retry-delay-in-mins	10	2013-02-26 14:57:33.549-06
+rsna-assigning-authority	1.3.6.1.4.1.21367.13.20.3000	2017-11-03 13:17:12.478876-06
 scp-ae-title	RSNA-ISN	2011-01-10 18:35:16.668828-06
-scu-ae-title	RSNA-ISN	2011-01-10 18:43:13.369949-06
-consent-expired-days	90	2012-03-13 15:56:06.768-05
+scp-idle-timeout	60000	2014-06-18 13:05:05.933-05
+scp-max-receive-pdu-length	16364	2015-03-20 13:00:05.933-05
+scp-max-send-pdu-length	16364	2015-03-20 13:00:05.933-05
 scp-port	4104	2012-03-13 15:57:33.549-05
 scp-release-timeout	5000	2012-03-13 15:57:33.549-05
 scp-request-timeout	5000	2012-03-13 15:57:33.549-05
-max-retries	10	2013-02-26 14:57:33.549-06
-retry-delay-in-mins	10	2013-02-26 14:57:33.549-06
-fail-on-incomplete-study	false	2013-03-04 14:57:33.549-06
-retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
+scu-ae-title	RSNA-ISN	2011-01-10 18:43:13.369949-06
 search-patient-lastname	false	2014-02-21 12:05:05.933-06
 secondary-capture-report-enabled	true	2014-02-21 12:05:05.933-06
-scp-idle-timeout	60000	2014-06-18 13:05:05.933-05
-submit-stats	false	2014-10-16 15:58:33.549-05
-scp-max-send-pdu-length	16364	2015-03-20 13:00:05.933-05
-scp-max-receive-pdu-length	16364	2015-03-20 13:00:05.933-05
+site-assigning-authority	TBD	2011-11-10 13:00:00.000000-06
 site_id	TBD	2015-03-31 17:35:16.668828-05
-pdf-template	false	2017-04-03 13:04:01.177535-05
+submit-stats	false	2014-10-16 15:58:33.549-05
 \.
 
 
