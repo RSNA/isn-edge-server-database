@@ -1273,7 +1273,7 @@ max-retries	10	2013-02-26 14:57:33.549-06
 pdf-template	false	2017-04-03 13:04:01.177535-05
 retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06
 retry-delay-in-mins	10	2013-02-26 14:57:33.549-06
-rsna-assigning-authority	1.3.6.1.4.1.21367.13.20.3000	2017-11-03 13:17:12.478876-06
+rsna-assigning-authority	1.3.6.1.4.1.19376.3.840.1.1.1	2017-11-03 13:17:12.478876-06
 scp-ae-title	RSNA-ISN	2011-01-10 18:35:16.668828-06
 scp-idle-timeout	60000	2014-06-18 13:05:05.933-05
 scp-max-receive-pdu-length	16364	2015-03-20 13:00:05.933-05

@@ -33,7 +33,7 @@ UPDATE configurations SET value='mllp://ec2-54-145-249-166.compute-1.amazonaws.c
 INSERT INTO configurations (key,value) VALUES ('scp-max-send-pdu-length','16364');
 INSERT INTO configurations (key,value) VALUES ('scp-max-receive-pdu-length','16364');
 INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
-INSERT INTO configurations (key,value) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.21367.13.20.3000');
+INSERT INTO configurations (key,value) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.19376.3.840.1.1.1');
 INSERT INTO configurations (key,value) VALUES ('iti41-doc-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
 INSERT INTO configurations (key,value) VALUES ('iti41-img-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
 INSERT INTO configurations (key,value) VALUES ('iti9-pix-uri','mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600');
