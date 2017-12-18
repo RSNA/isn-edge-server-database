@@ -463,7 +463,8 @@ CREATE TABLE job_sets (
     access_code character varying(64),
     send_to_site boolean DEFAULT false NOT NULL,
     phone_number character varying(20),
-    global_id character varying(64)
+    global_id character varying(64),
+    global_aa character varying(64)
 );
 
 
