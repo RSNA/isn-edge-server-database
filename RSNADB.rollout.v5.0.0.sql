@@ -9,6 +9,7 @@ END IF;
 
 ALTER TABLE job_sets ADD COLUMN phone_number character varying(20);
 ALTER TABLE job_sets ADD COLUMN global_id character varying(64);
+ALTER TABLE job_sets ADD COLUMN global_aa character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
 --Update configurations
