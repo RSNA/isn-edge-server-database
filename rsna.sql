@@ -681,7 +681,7 @@ ALTER TABLE reports OWNER TO edge;
 -- Name: TABLE reports; Type: COMMENT; Schema: public; Owner: edge
 --
 
-COMMENT ON TABLE reports IS 'This table contains exam report and exam status as sent from teh MIRTH HL7 channel. Combined with the Exams table, this provides all info needed to determine exam staus and location to create a job to send to the CH';
+COMMENT ON TABLE reports IS 'This table contains exam report and exam status as sent from the MIRTH HL7 channel. Combined with the Exams table, this provides all info needed to determine exam staus and location to create a job to send to the CH';
 
 
 --
@@ -1264,12 +1264,12 @@ ALTER TABLE ONLY users ALTER COLUMN user_id SET DEFAULT nextval('users_user_id_s
 COPY configurations (key, value, modified_date) FROM stdin;
 consent-expired-days	90	2012-03-13 15:56:06.768-05
 fail-on-incomplete-study	false	2013-03-04 14:57:33.549-06
-iti41-doc-endpoint-uri	http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
-iti41-img-endpoint-uri	http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
+iti41-doc-endpoint-uri	https://64.28.70.198:8443/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
+iti41-img-endpoint-uri	https://64.28.70.198:8443/XDImgService/services/xdrreceiver	2017-11-03 13:17:12.478876-06
 iti41-socket-timeout	120	2011-04-05 12:10:46.354824-05
-iti41-source-id	1.3.6.1.4.1.21367	2017-11-03 13:17:12.478876-06
-iti8-reg-uri	mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600	2017-11-03 13:17:12.478876-06
-iti9-pix-uri	mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600	2017-11-03 13:17:12.478876-06
+iti41-source-id	TBD	2017-11-03 13:17:12.478876-06
+iti8-reg-uri	mllps://64.28.70.198:8444	2017-11-03 13:17:12.478876-06
+iti9-pix-uri	mllps://64.28.70.198:8444	2017-11-03 13:17:12.478876-06
 max-retries	10	2013-02-26 14:57:33.549-06
 pdf-template	false	2017-04-03 13:04:01.177535-05
 retrieve-timeout-in-secs	600	2013-03-04 14:57:33.549-06

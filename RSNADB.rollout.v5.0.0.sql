@@ -13,14 +13,19 @@ ALTER TABLE job_sets ADD COLUMN global_aa character varying(64);
 ALTER TABLE patients ADD COLUMN autosend boolean DEFAULT false;
 
 --Update configurations
-UPDATE configurations SET value='1.3.6.1.4.1.21367' WHERE key='iti41-source-id';
-UPDATE configurations SET value='mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600' WHERE key='iti8-reg-uri';
-INSERT INTO configurations (key,value) VALUES ('pdf-template','false');
-INSERT INTO configurations (key,value) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.19376.3.840.1.1.1');
-INSERT INTO configurations (key,value) VALUES ('iti41-doc-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
-INSERT INTO configurations (key,value) VALUES ('iti41-img-endpoint-uri','http://ec2-54-145-249-166.compute-1.amazonaws.com:8080/XDImgService/services/xdrreceiver');
-INSERT INTO configurations (key,value) VALUES ('iti9-pix-uri','mllp://ec2-54-145-249-166.compute-1.amazonaws.com:3600');
+UPDATE configurations SET value='TBD' WHERE key='iti41-source-id';
+-- These next 4 lines are for the test Clearinghouse.
+INSERT INTO configurations (key,value,modified_date) VALUES ('iti41-doc-endpoint-uri','https://64.28.70.198:8443/XDImgService/services/xdrreceiver', '2018-01-12 11:00:00.000+00');
+INSERT INTO configurations (key,value,modified_date) VALUES ('iti41-img-endpoint-uri','https://64.28.70.198:8443/XDImgService/services/xdrreceiver', '2018-01-12 11:00:00.000+00');
+UPDATE configurations SET value='mllps://64.28.70.198:8444' WHERE key='iti8-reg-uri';
+INSERT INTO configurations (key,value,modified_date) VALUES ('iti9-pix-uri','mllps://64.28.70.198:8444', '2018-01-12 11:00:00.000+00');
+-- End of entries for test Clearinghouse
 DELETE FROM configurations WHERE key='iti8-pix-uri';
+
+INSERT INTO configurations (key,value,modified_date) VALUES ('pdf-template','false', '2018-01-12 11:00:00.000+00');
+INSERT INTO configurations (key,value,modified_date) VALUES ('rsna-assigning-authority','1.3.6.1.4.1.19376.3.840.1.1.1', '2018-01-12 11:00:00.000+00');
+INSERT INTO configurations (key,value,modified_date) VALUES ('site-assigning-authority','TBD', '2018-01-12 11:00:00.000+00');
+
 DELETE FROM configurations WHERE key='iti41-endpoint-uri-test';
 DELETE FROM configurations WHERE key='iti41-endpoint-uri';
 
